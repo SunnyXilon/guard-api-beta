@@ -1,0 +1,15 @@
+.venv
+frontend/node_modules
+frontend/dist
+**/__pycache__
+**/.pytest_cache
+*.db
+*.log
+*.err.log
+*.out.log
+.env
+.env.*
+.postgres-local-password
+.git
+.github
+docs/legal

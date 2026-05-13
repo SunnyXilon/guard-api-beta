@@ -1,0 +1,85 @@
+services:
+  - type: pserv
+    name: guard-api-inference-beta
+    runtime: docker
+    dockerfilePath: Dockerfile.inference
+    dockerContext: .
+    plan: starter
+    envVars:
+      - key: RTCM_ENVIRONMENT
+        value: production
+      - key: RTCM_ENABLE_HF_MODEL
+        value: "true"
+
+  - type: web
+    name: guard-api-beta
+    runtime: docker
+    dockerfilePath: Dockerfile.api
+    dockerContext: .
+    plan: starter
+    healthCheckPath: /health
+    envVars:
+      - key: RTCM_ENVIRONMENT
+        value: production
+      - key: RTCM_APP_NAME
+        value: Guard API
+      - key: RTCM_SESSION_SECRET
+        generateValue: true
+      - key: RTCM_DATABASE_URL
+        fromDatabase:
+          name: guard-api-postgres-beta
+          property: connectionString
+      - key: RTCM_INFERENCE_SERVICE_URL
+        fromService:
+          type: pserv
+          name: guard-api-inference-beta
+          property: hostport
+      - key: RTCM_CORS_ALLOWED_ORIGINS
+        sync: false
+      - key: RTCM_BOOTSTRAP_API_KEYS
+        value: "false"
+      - key: RTCM_BOOTSTRAP_DEFAULT_KEYS
+        value: ""
+      - key: RTCM_BOOTSTRAP_ADMIN_KEYS
+        value: ""
+      - key: RTCM_SELF_SERVICE_ONBOARDING_ENABLED
+        value: "true"
+      - key: RTCM_CLERK_JWKS_URL
+        sync: false
+      - key: RTCM_CLERK_ISSUER
+        sync: false
+      - key: RTCM_CLERK_AUTHORIZED_PARTIES
+        sync: false
+      - key: RTCM_BOOTSTRAP_MONTHLY_QUOTA
+        value: "1000"
+      - key: RTCM_REQUEST_RATE_LIMIT_PER_MINUTE
+        value: "120"
+      - key: RTCM_RATE_LIMIT_ENABLED
+        value: "false"
+      - key: RTCM_RATE_LIMIT_REDIS_URL
+        value: ""
+      - key: RTCM_IMAGE_SCANNING_REQUIRED
+        value: "false"
+      - key: RTCM_LOCAL_VISION_SAFETY_ENABLED
+        value: "false"
+      - key: RTCM_CONNECTOR_WEBHOOK_SIGNING_SECRET
+        generateValue: true
+      - key: RTCM_BILLING_REQUIRED
+        value: "false"
+      - key: RTCM_STRIPE_SECRET_KEY
+        value: ""
+      - key: RTCM_STRIPE_WEBHOOK_SECRET
+        value: ""
+      - key: RTCM_BILLING_PLAN_PRICE_IDS
+        value: "{}"
+      - key: RTCM_META_APP_ID
+        value: ""
+      - key: RTCM_META_APP_SECRET
+        value: ""
+      - key: RTCM_META_OAUTH_REDIRECT_URI
+        value: ""
+
+databases:
+  - name: guard-api-postgres-beta
+    databaseName: guard_api
+    user: guard_api
