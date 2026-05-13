@@ -35,6 +35,7 @@ class DashboardService:
                     triggered_categories=categories,
                     explanation=result.explanation,
                     content_preview=self._preview(request.content_text),
+                    fallback_model=(result.metadata_json or {}).get("fallback_model", "not_used"),
                     created_at=request.created_at,
                 )
             )

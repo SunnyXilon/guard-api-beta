@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from time import perf_counter
+from urllib.parse import urlparse
 
 import httpx
 
@@ -35,3 +36,37 @@ class InferenceClient:
                 latency_ms=latency_ms,
                 fallback_used=True,
             )
+
+    async def health_status(self) -> dict[str, object]:
+        parsed = urlparse(self.base_url)
+        host = parsed.hostname or ""
+        runtime = "local" if host in {"127.0.0.1", "localhost"} else "hosted"
+        started = perf_counter()
+        try:
+            async with httpx.AsyncClient(
+                base_url=self.base_url,
+                timeout=self.timeout_seconds,
+                transport=self.transport,
+            ) as client:
+                response = await client.get("/health")
+                response.raise_for_status()
+                payload = response.json()
+            return {
+                "status": "online",
+                "runtime": runtime,
+                "model": payload.get("model", "unknown"),
+                "model_loaded": bool(payload.get("model_loaded", False)),
+                "fallback_used": bool(payload.get("fallback_used", False)),
+                "latency_ms": round((perf_counter() - started) * 1000, 2),
+                "error": payload.get("load_error"),
+            }
+        except Exception as exc:
+            return {
+                "status": "offline",
+                "runtime": runtime,
+                "model": "inference-service-unavailable",
+                "model_loaded": False,
+                "fallback_used": True,
+                "latency_ms": round((perf_counter() - started) * 1000, 2),
+                "error": str(exc),
+            }

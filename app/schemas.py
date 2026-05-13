@@ -129,6 +129,7 @@ class ModerationDecisionItem(BaseModel):
     triggered_categories: List[ModerationCategory] = Field(default_factory=list)
     explanation: str
     content_preview: str
+    fallback_model: str = "not_used"
     created_at: datetime
 
 

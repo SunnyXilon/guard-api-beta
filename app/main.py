@@ -297,6 +297,13 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             content=content,
         )
 
+    @app.get("/dashboard/inference-status")
+    async def dashboard_inference_status(
+        request: Request,
+        _tenant: AuthenticatedTenant = Depends(get_dashboard_tenant),
+    ) -> dict[str, object]:
+        return await request.app.state.inference_client.health_status()
+
     @app.post("/moderate/text")
     async def moderate_text(
         request_body: TextModerationRequest,

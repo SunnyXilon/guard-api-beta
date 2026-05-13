@@ -123,6 +123,7 @@ type DashboardSummary = {
     triggered_categories: string[];
     explanation: string;
     content_preview: string;
+    fallback_model: string;
     created_at: string;
   }>;
   policy: {
@@ -142,6 +143,16 @@ type ApiKeyInfo = {
   is_active: boolean;
   created_at: string;
   last_used_at?: string | null;
+};
+
+type InferenceStatus = {
+  status: "online" | "offline";
+  runtime: "local" | "hosted";
+  model: string;
+  model_loaded: boolean;
+  fallback_used: boolean;
+  latency_ms: number;
+  error?: string | null;
 };
 
 type ApiKeyUsage = ApiKeyInfo & {
@@ -885,6 +896,7 @@ export function App({ clerkEnabled, clerkLoaded, clerkSignedIn, getClerkToken }:
         triggered_categories: payload.decision.triggered_categories,
         explanation: payload.decision.explanation,
         content_preview: contentPreview,
+        fallback_model: payload.metadata.fallback_model,
         created_at: new Date().toISOString(),
       };
 
@@ -1916,37 +1928,37 @@ export function App({ clerkEnabled, clerkLoaded, clerkSignedIn, getClerkToken }:
         <div className="absolute inset-0 bg-[linear-gradient(rgba(15,23,42,0.05)_1px,transparent_1px),linear-gradient(90deg,rgba(15,23,42,0.05)_1px,transparent_1px)] bg-[size:42px_42px] dark:bg-[linear-gradient(rgba(255,255,255,0.06)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.06)_1px,transparent_1px)]" />
 
         <div className="container relative">
-          <nav className="flex h-20 items-center justify-between">
-            <button className="flex items-center gap-3" type="button" onClick={() => navigate("/")}>
+          <nav className="flex h-20 items-center justify-between gap-4">
+            <button className="flex shrink-0 items-center gap-3" type="button" onClick={() => navigate("/")}>
               <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary text-primary-foreground shadow-glow">
                 <ShieldCheck className="h-5 w-5" />
               </span>
-              <span className="text-lg font-semibold">Guard API</span>
+              <span className="whitespace-nowrap text-lg font-semibold">Guard API</span>
             </button>
-            <div className="hidden items-center gap-7 text-sm text-muted-foreground md:flex">
-              <a className="transition hover:text-foreground" href="#platform">
+            <div className="hidden min-w-0 flex-1 items-center justify-center gap-4 text-sm text-muted-foreground lg:flex xl:gap-5">
+              <a className="whitespace-nowrap transition hover:text-foreground" href="#platform">
                 Platform
               </a>
-              <a className="transition hover:text-foreground" href="#workflow">
+              <a className="whitespace-nowrap transition hover:text-foreground" href="#workflow">
                 Workflow
               </a>
-              <a className="transition hover:text-foreground" href="#how-to-use">
+              <a className="whitespace-nowrap transition hover:text-foreground" href="#how-to-use">
                 How to use
               </a>
-              <a className="transition hover:text-foreground" href="#next-update">
+              <a className="hidden whitespace-nowrap transition hover:text-foreground xl:inline" href="#next-update">
                 Next update
               </a>
-              <a className="transition hover:text-foreground" href="#dashboard-preview">
+              <a className="hidden whitespace-nowrap transition hover:text-foreground 2xl:inline" href="#dashboard-preview">
                 Dashboard preview
               </a>
-              <a className="transition hover:text-foreground" href="#pricing">
+              <a className="whitespace-nowrap transition hover:text-foreground" href="#pricing">
                 Pricing
               </a>
-              <a className="transition hover:text-foreground" href="#faq">
+              <a className="whitespace-nowrap transition hover:text-foreground" href="#faq">
                 FAQ
               </a>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex shrink-0 items-center gap-2">
               <Button
                 type="button"
                 variant="outline"
@@ -1957,7 +1969,7 @@ export function App({ clerkEnabled, clerkLoaded, clerkSignedIn, getClerkToken }:
               >
                 {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
               </Button>
-              <Button asChild variant="outline">
+              <Button asChild variant="outline" size="sm" className="hidden sm:inline-flex">
                 <a href={`${API_BASE}/docs`} target="_blank" rel="noreferrer">
                   API docs
                   <ArrowRight className="h-4 w-4" />
@@ -2346,10 +2358,10 @@ function AuthActions({ clerkEnabled, onDashboard }: { clerkEnabled: boolean; onD
     <>
       <Show when="signed-out">
         <SignInButton mode="modal" forceRedirectUrl="/dashboard" fallbackRedirectUrl="/dashboard">
-          <Button variant="outline">Sign in</Button>
+          <Button variant="outline" size="sm">Sign in</Button>
         </SignInButton>
         <SignUpButton mode="modal" forceRedirectUrl="/dashboard" fallbackRedirectUrl="/dashboard">
-          <Button>
+          <Button size="sm">
             Create account
             <ArrowRight className="h-4 w-4" />
           </Button>
@@ -2900,6 +2912,20 @@ function ClientDashboard({
   const [showWorkspaceRename, setShowWorkspaceRename] = useState(false);
   const [showWorkspaceDeleteConfirm, setShowWorkspaceDeleteConfirm] = useState(false);
   const [showWorkspaceCreateConfirm, setShowWorkspaceCreateConfirm] = useState(false);
+  const [inferenceStatus, setInferenceStatus] = useState<InferenceStatus | null>(
+    previewMode
+      ? {
+          status: "online",
+          runtime: "local",
+          model: "unitary/toxic-bert",
+          model_loaded: true,
+          fallback_used: false,
+          latency_ms: 24,
+          error: null,
+        }
+      : null,
+  );
+  const [inferenceLoading, setInferenceLoading] = useState(false);
   const sidebarItems: Array<{ id: DashboardSection; label: string; icon: typeof BarChart3 }> = [
     { id: "overview", label: "Marketplace", icon: BarChart3 },
     { id: "playground", label: "Playground", icon: Radar },
@@ -2913,6 +2939,41 @@ function ClientDashboard({
     { id: "billing", label: "Billing", icon: CreditCard },
   ];
   const activeSidebarItem = sidebarItems.find((item) => item.id === activeSection);
+
+  async function loadInferenceStatus() {
+    if (previewMode || !dashboardToken) {
+      return;
+    }
+    setInferenceLoading(true);
+    try {
+      const response = await fetch(`${API_BASE}/dashboard/inference-status`, {
+        headers: { Authorization: `Bearer ${dashboardToken}` },
+      });
+      if (!response.ok) {
+        throw new Error(`Inference status failed: ${response.status}`);
+      }
+      setInferenceStatus((await response.json()) as InferenceStatus);
+    } catch (caught) {
+      setInferenceStatus({
+        status: "offline",
+        runtime: "hosted",
+        model: "inference-service-unavailable",
+        model_loaded: false,
+        fallback_used: true,
+        latency_ms: 0,
+        error: caught instanceof Error ? caught.message : "Unable to reach inference status.",
+      });
+    } finally {
+      setInferenceLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    if (!dashboard || previewMode) {
+      return;
+    }
+    void loadInferenceStatus();
+  }, [dashboard?.tenant.tenant_id, dashboardToken, previewMode]);
 
   return (
     <>
@@ -3201,6 +3262,14 @@ function ClientDashboard({
             </div>
 
             {!previewMode ? (
+              <InferenceStatusPanel
+                status={inferenceStatus}
+                loading={inferenceLoading}
+                onRefresh={loadInferenceStatus}
+              />
+            ) : null}
+
+            {!previewMode ? (
               <OnboardingChecklist
                 dashboard={dashboard}
                 apiKeys={apiKeys}
@@ -3425,6 +3494,60 @@ function WorkspaceShieldMergeAnimation({ onComplete }: { onComplete: () => void 
         </div>
       </motion.div>
     </motion.div>
+  );
+}
+
+function InferenceStatusPanel({
+  status,
+  loading,
+  onRefresh,
+}: {
+  status: InferenceStatus | null;
+  loading: boolean;
+  onRefresh: () => void;
+}) {
+  const online = status?.status === "online" && status.model_loaded && !status.fallback_used;
+  const title = online ? "Inference online" : status ? "Inference fallback active" : "Checking inference";
+  const modelLabel = status?.model ?? "checking";
+  const runtimeLabel = status ? `${status.runtime} service` : "unknown service";
+
+  return (
+    <Card className="dark:border-white/10">
+      <CardContent className="flex flex-col gap-4 p-4 lg:flex-row lg:items-center lg:justify-between">
+        <div className="flex min-w-0 items-start gap-3">
+          <span
+            className={cn(
+              "flex h-10 w-10 shrink-0 items-center justify-center rounded-md",
+              online
+                ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-200"
+                : "bg-amber-50 text-amber-700 dark:bg-amber-950 dark:text-amber-200",
+            )}
+          >
+            <Activity className="h-5 w-5" />
+          </span>
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-2">
+              <p className="font-medium text-slate-950 dark:text-white">{title}</p>
+              <Badge variant={online ? "success" : "secondary"}>{status?.status ?? "checking"}</Badge>
+              <Badge variant="outline">{runtimeLabel}</Badge>
+            </div>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Model {modelLabel}
+              {status?.latency_ms ? ` | ${status.latency_ms}ms health check` : ""}
+            </p>
+            {!online ? (
+              <p className="mt-2 text-sm text-amber-700 dark:text-amber-200">
+                Text moderation will still run, but results are lower-confidence when the transformer service is unavailable.
+              </p>
+            ) : null}
+          </div>
+        </div>
+        <Button type="button" variant="outline" size="sm" onClick={onRefresh} disabled={loading}>
+          <RefreshCw className={cn("h-4 w-4", loading ? "animate-spin" : "")} />
+          Refresh
+        </Button>
+      </CardContent>
+    </Card>
   );
 }
 
@@ -4072,9 +4195,11 @@ function ModerationPlaygroundPanel({
                     {result ? (
                       <p className="text-sm leading-6 text-slate-700 dark:text-slate-200">{result.decision.explanation}</p>
                     ) : null}
+                    {result ? <ConfidenceNotice fallbackModel={result.metadata.fallback_model} /> : null}
                     <div className="grid gap-2">
                       <ApiDocTile label="Request ID" value={result?.request_id ?? socialResult?.moderation_request_id ?? "saved social event"} />
                       <ApiDocTile label="Review case" value={result?.review_case_id ?? "created when the decision needs review"} />
+                      {result ? <ApiDocTile label="Model path" value={modelPathLabel(result.metadata.fallback_model)} /> : null}
                     </div>
                     {triggeredCategories.length ? (
                       <div className="flex flex-wrap gap-2">
@@ -4108,6 +4233,50 @@ function ModerationPlaygroundPanel({
           </div>
         </CardContent>
       </Card>
+    </div>
+  );
+}
+
+function modelPathLabel(fallbackModel: string) {
+  if (!fallbackModel || fallbackModel === "not_used") {
+    return "rules-only";
+  }
+  if (fallbackModel === "inference-service-unavailable") {
+    return "rules-only fallback";
+  }
+  if (fallbackModel === "heuristic-context-v1") {
+    return "rules + heuristic context";
+  }
+  return `rules + ${fallbackModel}`;
+}
+
+function isLowerConfidenceFallback(fallbackModel: string) {
+  return fallbackModel === "inference-service-unavailable";
+}
+
+function ConfidenceNotice({ fallbackModel }: { fallbackModel: string }) {
+  if (!fallbackModel || fallbackModel === "not_used") {
+    return null;
+  }
+
+  const lowerConfidence = isLowerConfidenceFallback(fallbackModel);
+  return (
+    <div
+      className={cn(
+        "rounded-lg border p-3 text-sm",
+        lowerConfidence
+          ? "border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-400/25 dark:bg-amber-950/35 dark:text-amber-100"
+          : "border-teal-200 bg-teal-50 text-teal-800 dark:border-teal-400/25 dark:bg-teal-950/35 dark:text-teal-100",
+      )}
+    >
+      <p className="font-medium">
+        {lowerConfidence ? "Lower confidence result" : "Enhanced model path"}
+      </p>
+      <p className="mt-1">
+        {lowerConfidence
+          ? "The transformer inference service was unavailable, so this decision used local rules and should be reviewed more carefully."
+          : `This decision used ${modelPathLabel(fallbackModel)}.`}
+      </p>
     </div>
   );
 }
@@ -4150,6 +4319,11 @@ function MarketplaceOverview({ dashboard }: { dashboard: DashboardSummary }) {
                         {decision.action}
                       </Badge>
                       <span className="text-xs text-muted-foreground">{decision.modality}</span>
+                      {decision.fallback_model && decision.fallback_model !== "not_used" ? (
+                        <Badge variant={isLowerConfidenceFallback(decision.fallback_model) ? "secondary" : "outline"}>
+                          {modelPathLabel(decision.fallback_model)}
+                        </Badge>
+                      ) : null}
                     </div>
                     <span className="text-xs text-muted-foreground">
                       {new Date(decision.created_at).toLocaleString()}
@@ -4157,6 +4331,11 @@ function MarketplaceOverview({ dashboard }: { dashboard: DashboardSummary }) {
                   </div>
                   <p className="text-sm text-slate-700 dark:text-slate-200">{decision.content_preview || "No preview"}</p>
                   <p className="mt-1 text-xs text-muted-foreground">{decision.explanation}</p>
+                  {isLowerConfidenceFallback(decision.fallback_model) ? (
+                    <p className="mt-2 text-xs font-medium text-amber-700 dark:text-amber-200">
+                      Lower confidence: transformer inference was unavailable for this decision.
+                    </p>
+                  ) : null}
                 </div>
               ))
             ) : (
@@ -5806,13 +5985,19 @@ function ModerationConsole({
                   <div>
                     <p className="text-sm font-medium text-slate-950 dark:text-white">{result.decision.explanation}</p>
                     <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-                      Tenant {result.tenant_id} | {result.metadata.latency_ms}ms | {result.metadata.policy_version}
+                      Tenant {result.tenant_id} | {result.metadata.latency_ms}ms | {result.metadata.policy_version} |{" "}
+                      {modelPathLabel(result.metadata.fallback_model)}
                     </p>
                   </div>
                   <Badge variant={action === "block" ? "danger" : action === "allow" ? "success" : "secondary"}>
                     {result.decision.triggered_categories.join(", ") || "no risk"}
                   </Badge>
                 </div>
+                {result.metadata.fallback_model !== "not_used" ? (
+                  <div className="mt-3">
+                    <ConfidenceNotice fallbackModel={result.metadata.fallback_model} />
+                  </div>
+                ) : null}
               </div>
 
               <div className="grid gap-3 sm:grid-cols-2">
