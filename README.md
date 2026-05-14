@@ -22,6 +22,13 @@ Guard API scores content across these safety categories:
 
 Every moderation response includes category scores, severity, matched policy labels, an explanation, a request ID, and the final action your app should take.
 
+Paid plans use moderation credits to protect media-heavy usage:
+
+- Text check: 1 credit
+- Image scan: 10 credits
+- Audio check: 10 credits
+- Video check: 25 credits
+
 ## Four moderation modes
 
 Guard API currently supports **4 content modes**:

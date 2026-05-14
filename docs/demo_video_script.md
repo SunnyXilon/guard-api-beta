@@ -34,11 +34,11 @@ Say:
 
 ## 1:25-1:45 Billing
 
-Open Billing and show quota, plans, checkout buttons, and payment management.
+Open Billing and show moderation credits, plans, checkout buttons, and payment management.
 
 Say:
 
-"Customers can start on a trial, upgrade by quota, and manage payment through Stripe."
+"Customers can start on a trial, upgrade by moderation credits, and manage payment through billing."
 
 ## 1:45-2:00 Close
 
@@ -47,4 +47,3 @@ Show Integration center and API docs.
 Say:
 
 "Developers can integrate with Node, Python, or any backend. Operators get the review console. The first paid wedge is small UGC teams that need moderation without building a trust-and-safety stack."
-

@@ -595,7 +595,7 @@ const howToUsePaths: HowToUsePath[] = [
     label: "Organizations",
     title: "Roll it out across a team or business unit",
     summary:
-      "Separate workspaces by product or client, keep API keys scoped, route uncertain content to reviewers, and track quota by billing scope.",
+      "Separate workspaces by product or client, keep API keys scoped, route uncertain content to reviewers, and track credits by billing scope.",
     icon: Workflow,
     steps: [
       "Create separate workspaces for production, testing, or each client.",
@@ -739,30 +739,30 @@ const billingPlans = [
     name: "starter",
     price: "$15",
     cadence: "month",
-    quota: 1_000,
-    audience: "First month free with 1,000 included requests",
-    overage: "$15/month after the first month",
+    quota: 5_000,
+    audience: "For early apps testing real moderation traffic",
+    overage: "Includes up to 500 image scans if used only for images",
     trial: "30-day free trial",
-    features: ["1 workspace", "1,000 trial requests", "Text and image moderation", "Basic review queue"],
+    features: ["1 workspace", "5,000 moderation credits", "Text, image, audio, and video modes", "Basic review queue"],
   },
   {
     name: "growth",
     price: "$29",
     cadence: "month",
-    quota: 3_000,
-    audience: "For small production marketplaces",
-    overage: "$12 per extra 1,000 requests",
-    features: ["API key rotation", "Policy threshold controls", "Review case assignment", "Email support"],
+    quota: 20_000,
+    audience: "For small production marketplaces and communities",
+    overage: "Includes up to 2,000 image scans if used only for images",
+    features: ["20,000 moderation credits", "Policy threshold controls", "Review case assignment", "Email support"],
     badge: "Most teams",
   },
   {
     name: "scale",
     price: "$69",
     cadence: "month",
-    quota: 10_000,
+    quota: 75_000,
     audience: "For higher-volume trust operations",
-    overage: "$8 per extra 1,000 requests",
-    features: ["Higher request quota", "Priority review workflows", "Audit-ready activity logs", "Priority support"],
+    overage: "Includes up to 7,500 image scans if used only for images",
+    features: ["75,000 moderation credits", "Priority review workflows", "Audit-ready activity logs", "Priority support"],
   },
 ];
 
@@ -774,7 +774,7 @@ const legalPages = {
       ["Product use", "Guard API is a moderation API and dashboard for business use. Customers are responsible for how they configure policies, handle user appeals, and apply decisions in their own products."],
       ["Accounts and keys", "Customers must keep API keys and dashboard sessions secure, use server-side integrations for moderation keys, and promptly rotate any key that may be exposed."],
       ["Billing", "Paid plans renew monthly unless cancelled. Usage limits, trial periods, overage handling, and available features are shown on the pricing and billing screens."],
-      ["Service limits", "The service may reject requests that exceed quota, rate limits, file-size limits, unsupported media types, or acceptable-use restrictions."],
+      ["Service limits", "The service may reject requests that exceed credit quota, rate limits, file-size limits, unsupported media types, or acceptable-use restrictions."],
       ["No legal advice", "Moderation decisions are risk signals and workflow recommendations. Customers remain responsible for legal compliance and final enforcement choices."],
     ],
   },
@@ -783,7 +783,7 @@ const legalPages = {
     updated: "May 14, 2026",
     sections: [
       ["Data processed", "The service processes submitted text, image metadata, uploaded media where enabled, account information, API keys, policy settings, audit events, and billing identifiers."],
-      ["Purpose", "Data is used to score content, explain decisions, maintain review queues, enforce quota, secure the service, provide support, and improve reliability."],
+      ["Purpose", "Data is used to score content, explain decisions, maintain review queues, enforce credits, secure the service, provide support, and improve reliability."],
       ["Subprocessors", "Production deployments may use hosting, database, authentication, billing, monitoring, and optional image-scanning providers configured by the operator."],
       ["Customer control", "Customers can rotate keys, delete workspaces, resolve review cases, and request deletion or export through support."],
     ],
@@ -2904,9 +2904,9 @@ function PublicPricingSection({ onDashboard }: { onDashboard: () => void }) {
           <div className="rounded-lg border border-teal-200 bg-white p-5 shadow-sm dark:border-teal-400/20 dark:bg-slate-950">
             <div className="flex flex-wrap items-center justify-between gap-4">
               <div>
-                <p className="text-sm font-medium text-slate-900 dark:text-white">Starter trial includes 1,000 requests</p>
+                <p className="text-sm font-medium text-slate-900 dark:text-white">Starter trial includes 5,000 moderation credits</p>
                 <p className="mt-1 text-sm text-muted-foreground">
-                  Text and image moderation, policy controls, review cases, and API keys are included.
+                  Text is 1 credit, image and audio are 10 credits, and video is 25 credits per check.
                 </p>
               </div>
               <Button onClick={onDashboard}>
@@ -2938,7 +2938,7 @@ function PublicPricingSection({ onDashboard }: { onDashboard: () => void }) {
               </CardHeader>
               <CardContent>
                 <div className="rounded-lg bg-slate-50 p-3 dark:bg-slate-900">
-                  <p className="text-sm font-medium text-slate-900 dark:text-white">{plan.quota.toLocaleString()} requests/month</p>
+                  <p className="text-sm font-medium text-slate-900 dark:text-white">{plan.quota.toLocaleString()} credits/month</p>
                   <p className="mt-1 text-xs text-muted-foreground">{plan.overage}</p>
                 </div>
                 <div className="mt-4 grid gap-2">
@@ -2952,6 +2952,10 @@ function PublicPricingSection({ onDashboard }: { onDashboard: () => void }) {
               </CardContent>
             </Card>
           ))}
+        </div>
+        <div className="mt-5 rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950 dark:border-amber-400/25 dark:bg-amber-950/35 dark:text-amber-100">
+          Media-heavy apps should watch credit use closely. Credit weights: text 1, image 10, audio 10, video 25.
+          Custom media limits can be offered for high-volume customers.
         </div>
       </div>
     </section>
@@ -3011,16 +3015,16 @@ function PublicDashboardPreview({
               See what clients get after connecting a workspace.
             </h2>
             <p className="mt-3 text-slate-600 dark:text-slate-300">
-              This preview is separate from the real dashboard and uses example data with a quota limit of 10.
+              This preview is separate from the real dashboard and uses example data with a credit limit of 10.
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-3">
             <Badge variant={dashboardPreview.usage.remaining_requests === 0 ? "danger" : "secondary"}>
-              Example quota: {dashboardPreview.usage.total_requests}/10
+              Example credits: {dashboardPreview.usage.total_requests}/10
             </Badge>
             <Button variant="outline" size="sm" onClick={onResetPreview}>
               <RefreshCw className="h-4 w-4" />
-              Reset preview quota
+              Reset preview credits
             </Button>
           </div>
         </div>
@@ -3574,7 +3578,7 @@ function ClientDashboard({
                 <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-950 dark:border-red-400/25 dark:bg-red-950/35 dark:text-red-100">
                   <p className="font-medium">Are you sure you want to delete this workspace {dashboard.tenant.tenant_name}?</p>
                   <p className="mt-1 text-xs text-red-900/75 dark:text-red-100/70">
-                    Its API keys will stop working. Remaining quota stays shared across your existing workspaces.
+                    Its API keys will stop working. Remaining credits stay shared across your existing workspaces.
                   </p>
                   <div className="mt-3 grid gap-2">
                     <Button
@@ -3649,7 +3653,7 @@ function ClientDashboard({
                   <p className="font-medium">Create another workspace?</p>
                   <p className="mt-1 text-xs text-amber-900/80 dark:text-amber-100/75">
                     New workspaces use shared account billing by default. This means the workspace will use your current plan
-                    and draw from the same monthly quota unless you switch it to separate workspace billing later.
+                    and draw from the same monthly credits unless you switch it to separate workspace billing later.
                   </p>
                   <div className="mt-3 grid gap-2 sm:grid-cols-2">
                     <Button
@@ -3734,11 +3738,11 @@ function ClientDashboard({
 
             <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
               <UsageTile
-                label={`${dashboard.usage.billing_scope === "workspace" ? "Workspace" : "Shared"} quota of ${dashboard.usage.monthly_quota}`}
+                label={`${dashboard.usage.billing_scope === "workspace" ? "Workspace" : "Shared"} credits of ${dashboard.usage.monthly_quota}`}
                 value={dashboard.usage.total_requests}
                 icon={BarChart3}
               />
-              <UsageTile label="Quota left" value={dashboard.usage.remaining_requests} icon={Gauge} />
+              <UsageTile label="Credits left" value={dashboard.usage.remaining_requests} icon={Gauge} />
               <UsageTile label="Approved" value={dashboard.usage.allow} icon={CheckCircle2} tone="success" />
               <UsageTile label="Review" value={dashboard.usage.review} icon={Radar} tone="warning" />
               <UsageTile label="Blocked" value={dashboard.usage.block} icon={XCircle} tone="danger" />
@@ -4137,7 +4141,7 @@ function getIntegrationReadiness({
     {
       label: "Confirm billing plan",
       done: Boolean(billingStatus && billingStatus.subscription_status !== "trialing"),
-      detail: "Production traffic should have a clear quota, plan, and upgrade path.",
+      detail: "Production traffic should have clear credits, a plan, and an upgrade path.",
       action: "Keep trial for testing, then select the plan before real customer traffic.",
     },
   ];
@@ -5015,20 +5019,20 @@ function UsageCharts({ dashboard }: { dashboard: DashboardSummary }) {
           <LineChart className="h-5 w-5 text-teal-700" />
           Usage charts
         </CardTitle>
-        <CardDescription>Quota use and current-month decision mix.</CardDescription>
+        <CardDescription>Credit use and current-month decision mix.</CardDescription>
       </CardHeader>
       <CardContent>
         <div className="grid gap-5 lg:grid-cols-[0.9fr_1.1fr]">
           <div>
             <div className="mb-2 flex items-center justify-between text-sm">
-              <span className="font-medium text-slate-900 dark:text-white">Quota used</span>
+              <span className="font-medium text-slate-900 dark:text-white">Credits used</span>
               <span className="text-muted-foreground">{usedPercent}%</span>
             </div>
             <div className="h-3 rounded-full bg-slate-100 dark:bg-slate-800">
               <div className="h-3 rounded-full bg-teal-600" style={{ width: `${usedPercent}%` }} />
             </div>
             <p className="mt-2 text-xs text-muted-foreground">
-              {dashboard.usage.total_requests} of {dashboard.usage.monthly_quota} requests used.
+              {dashboard.usage.total_requests} of {dashboard.usage.monthly_quota} credits used.
             </p>
           </div>
           <div className="grid gap-3">
@@ -6093,7 +6097,7 @@ function BillingPanel({
           <CreditCard className="h-5 w-5 text-teal-700" />
           Billing
         </CardTitle>
-        <CardDescription>Manage plan quota, billing scope, and Stripe checkout when billing is configured.</CardDescription>
+        <CardDescription>Manage moderation credits, billing scope, and checkout when billing is configured.</CardDescription>
       </CardHeader>
       <CardContent>
         <div className="mb-5 rounded-lg border border-border bg-background p-4 dark:bg-slate-950/70">
@@ -6102,8 +6106,8 @@ function BillingPanel({
               <p className="text-sm font-medium text-slate-900 dark:text-white">Billing scope</p>
               <p className="mt-1 text-sm text-muted-foreground">
                 {billingScope === "workspace"
-                  ? "This workspace has its own plan, quota, and billing."
-                  : "This workspace shares one account quota with other shared-billing workspaces."}
+                  ? "This workspace has its own plan, credits, and billing."
+                  : "This workspace shares one account credit pool with other shared-billing workspaces."}
               </p>
             </div>
             <Badge variant={billingScope === "workspace" ? "secondary" : "success"}>
@@ -6135,7 +6139,7 @@ function BillingPanel({
             <div>
               <p className="text-sm font-medium text-slate-900 dark:text-white">Current subscription</p>
               <p className="mt-1 text-sm text-muted-foreground">
-                {currentPlan} plan | {billingStatus?.subscription_status ?? "unknown"} | {activeQuota.toLocaleString()} requests/month
+                {currentPlan} plan | {billingStatus?.subscription_status ?? "unknown"} | {activeQuota.toLocaleString()} credits/month
               </p>
             </div>
             <Badge variant={usage.remaining_requests <= Math.ceil(activeQuota * 0.15) ? "secondary" : "success"}>
@@ -6146,16 +6150,16 @@ function BillingPanel({
             <div className="h-2 rounded-full bg-teal-600" style={{ width: `${usedPercent}%` }} />
           </div>
           <p className="mt-2 text-xs text-muted-foreground">
-            {usage.total_requests.toLocaleString()} requests used this month.{" "}
+            {usage.total_requests.toLocaleString()} credits used this month.{" "}
             {billingScope === "workspace" ? "This count is for this workspace." : "This count is shared across account-billed workspaces."}
           </p>
           {usage.remaining_requests <= 0 ? (
             <div className="mt-4 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-900 dark:border-red-400/25 dark:bg-red-950/35 dark:text-red-100">
-              This workspace has used its monthly quota. Upgrade below or manage billing before sending more production traffic.
+              This workspace has used its monthly credit quota. Upgrade below or manage billing before sending more production traffic.
             </div>
           ) : usage.remaining_requests <= Math.ceil(activeQuota * 0.15) ? (
             <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-950 dark:border-amber-400/25 dark:bg-amber-950/35 dark:text-amber-100">
-              Quota is running low. Upgrade before production traffic is blocked.
+              Credits are running low. Upgrade before production traffic is blocked.
             </div>
           ) : null}
           <div className="mt-4 flex flex-wrap gap-2">
@@ -6201,7 +6205,7 @@ function BillingPanel({
               </div>
               <p className="mt-2 text-sm text-muted-foreground">{plan.audience}</p>
               <div className="mt-4 rounded-lg bg-slate-50 p-3 dark:bg-slate-900">
-                <p className="text-sm font-medium text-slate-900 dark:text-white">{plan.quota.toLocaleString()} requests/month</p>
+                <p className="text-sm font-medium text-slate-900 dark:text-white">{plan.quota.toLocaleString()} credits/month</p>
                 <p className="mt-1 text-xs text-muted-foreground">{plan.overage}</p>
               </div>
               <div className="mt-4 grid gap-2">

@@ -4,7 +4,7 @@ This draft is a starting point and should be reviewed before public launch.
 
 ## Free Trial
 
-New customers may receive a limited free trial if advertised on the pricing page. Trial quota and duration are subject to plan terms.
+New customers may receive a limited free trial if advertised on the pricing page. Trial credit quota and duration are subject to plan terms.
 
 ## Monthly Subscriptions
 

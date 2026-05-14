@@ -376,6 +376,26 @@ def test_monthly_quota_is_enforced_before_moderation(client) -> None:
     assert response.status_code == 402
 
 
+def test_image_moderation_consumes_weighted_credits(client) -> None:
+    db = client.app.state.session_factory()
+    try:
+        tenant = db.query(Tenant).filter_by(slug="marketplace").one()
+        tenant.monthly_quota = 9
+        db.add(tenant)
+        db.commit()
+    finally:
+        db.close()
+
+    response = client.post(
+        "/moderate/image",
+        headers=MARKET_HEADERS,
+        json={"image_caption": "ordinary listing image"},
+    )
+
+    assert response.status_code == 402
+    assert "needs 10 credits" in response.json()["detail"]
+
+
 def test_review_queue_lists_flagged_cases(client) -> None:
     client.post(
         "/moderate/text",

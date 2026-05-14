@@ -31,7 +31,7 @@ Guard API may process submitted content, metadata, decisions, audit events, and 
 
 ## Billing
 
-Paid plans renew monthly unless cancelled. Usage quotas, overages, trials, refunds, and cancellation behavior should match the pricing page and Stripe checkout terms.
+Paid plans renew monthly unless cancelled. Usage credit quotas, overages, trials, refunds, and cancellation behavior should match the pricing page and checkout terms.
 
 ## Availability
 

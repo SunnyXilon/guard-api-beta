@@ -195,3 +195,22 @@ class ModerationRepository:
             )
             .all()
         )
+
+    def list_request_results_between_tenants(
+        self,
+        tenant_ids: list[str],
+        start: datetime,
+        end: datetime,
+    ) -> list[tuple[ModerationRequestRecord, ModerationResultRecord]]:
+        if not tenant_ids:
+            return []
+        return (
+            self.db.query(ModerationRequestRecord, ModerationResultRecord)
+            .join(ModerationResultRecord, ModerationResultRecord.request_id == ModerationRequestRecord.id)
+            .filter(
+                ModerationRequestRecord.tenant_id.in_(tenant_ids),
+                ModerationRequestRecord.created_at >= start,
+                ModerationRequestRecord.created_at < end,
+            )
+            .all()
+        )

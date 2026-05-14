@@ -19,8 +19,8 @@ def test_dashboard_shows_usage_recent_decisions_and_policy(client) -> None:
     assert response.status_code == 200
     payload = response.json()
     assert payload["tenant"]["tenant_id"] == "marketplace"
-    assert payload["usage"]["monthly_quota"] == 1000
-    assert payload["usage"]["remaining_requests"] + payload["usage"]["total_requests"] == 1000
+    assert payload["usage"]["monthly_quota"] == 5000
+    assert payload["usage"]["remaining_requests"] + payload["usage"]["total_requests"] == 5000
     assert payload["usage"]["total_requests"] >= 1
     assert payload["usage"]["block"] >= 1
     assert payload["recent_decisions"]

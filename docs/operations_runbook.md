@@ -54,7 +54,7 @@ Invoke-WebRequest https://api.your-domain.example/ready
 ## Incident Severity
 
 - SEV1: API unavailable, billing broken, data exposure, or auth bypass.
-- SEV2: moderation degraded, inference unavailable, dashboard unavailable, or quota incorrectly blocks customers.
+- SEV2: moderation degraded, inference unavailable, dashboard unavailable, or credit quota incorrectly blocks customers.
 - SEV3: non-critical UI bug, delayed webhook processing, or documentation issue.
 
 ## Incident Flow
@@ -65,4 +65,3 @@ Invoke-WebRequest https://api.your-domain.example/ready
 4. Roll back if the latest deploy caused the incident.
 5. Post customer status if paid users are affected.
 6. Write a short postmortem with cause, impact, fix, and prevention.
-

@@ -69,7 +69,7 @@ class Settings(BaseSettings):
         "marketplace:rtcm_market_admin_key"
     )
     self_service_onboarding_enabled: bool = True
-    bootstrap_monthly_quota: int = 1000
+    bootstrap_monthly_quota: int = 5000
     stripe_secret_key: str = ""
     stripe_webhook_secret: str = ""
     clerk_jwks_url: str = ""
@@ -84,9 +84,9 @@ class Settings(BaseSettings):
     billing_required: bool = False
     billing_plan_price_ids: dict[str, str] = {}
     billing_plan_quotas: dict[str, int] = {
-        "starter": 1000,
-        "growth": 3000,
-        "scale": 10000,
+        "starter": 5000,
+        "growth": 20000,
+        "scale": 75000,
     }
     request_log_sampling: float = 1.0
     meta_graph_api_base_url: str = "https://graph.facebook.com/v19.0"

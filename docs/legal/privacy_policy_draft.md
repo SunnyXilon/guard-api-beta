@@ -16,7 +16,7 @@ Guard API may process:
 Data is used to:
 
 - Provide moderation decisions and dashboard workflows.
-- Enforce quotas, rate limits, and billing.
+- Enforce credit quotas, rate limits, and billing.
 - Debug service reliability issues.
 - Improve safety quality when customers explicitly allow it.
 

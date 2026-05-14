@@ -233,4 +233,4 @@ async def create_listing(payload: dict):
 - Keep moderation keys server-side.
 - Retry only idempotently; duplicate calls create duplicate moderation records.
 - Use dashboard review cases for human decisions and audit trails.
-- Monitor `402` responses as quota exhaustion and `429` responses as rate limiting.
+- Monitor `402` responses as moderation-credit exhaustion and `429` responses as rate limiting.

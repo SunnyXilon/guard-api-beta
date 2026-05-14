@@ -26,7 +26,7 @@ Important values:
 - `RTCM_STRIPE_SECRET_KEY`: live or test Stripe secret key.
 - `RTCM_STRIPE_WEBHOOK_SECRET`: webhook signing secret.
 - `RTCM_BILLING_PLAN_PRICE_IDS`: JSON map of plan names to Stripe price IDs.
-- `RTCM_BILLING_PLAN_QUOTAS`: JSON map of plan names to monthly quotas.
+- `RTCM_BILLING_PLAN_QUOTAS`: JSON map of plan names to monthly moderation-credit quotas.
 - `RTCM_CONNECTOR_WEBHOOK_SIGNING_SECRET`: random HMAC secret for connector webhook payloads.
 
 The app refuses to start in production if SQLite, demo keys, localhost CORS, or the dev session secret are still configured.
@@ -36,7 +36,7 @@ The app refuses to start in production if SQLite, demo keys, localhost CORS, or 
 For each beta customer:
 
 1. Create a tenant row.
-2. Set `plan_name` and `monthly_quota`.
+2. Set `plan_name` and `monthly_quota` in moderation credits.
 3. Create one admin key with `dashboard, policy:write` scopes.
 4. Have the customer create moderation-only integration keys from the dashboard.
 5. Share only the admin key through a secure channel.

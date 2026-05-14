@@ -27,6 +27,7 @@ from app.services.audit_service import AuditService
 from app.services.policy_service import PolicyService
 from app.services.review_service import ReviewService
 from app.taxonomy import DecisionAction
+from app.usage_credits import credits_for_modality
 from app.vision_safety import LocalVisionSafetyScanner, VisionSafetyResult
 
 
@@ -55,7 +56,7 @@ class ModerationService:
     async def moderate_text(
         self, request: TextModerationRequest, tenant: AuthenticatedTenant
     ) -> TextModerationResponse:
-        self._enforce_monthly_quota(tenant)
+        self._enforce_monthly_quota(tenant, "text")
         started = perf_counter()
         inference = await self.inference_client.score_text(
             request.text,
@@ -90,7 +91,7 @@ class ModerationService:
         image_bytes: bytes | None = None,
         filename: str | None = None,
     ) -> MultimodalModerationResponse:
-        self._enforce_monthly_quota(tenant)
+        self._enforce_monthly_quota(tenant, "image")
         started = perf_counter()
         vision_scan = self._scan_image_bytes(image_bytes)
         safety_scan = self._scan_image_safety(image_bytes)
@@ -173,7 +174,7 @@ class ModerationService:
         filename: str | None = None,
         content_type: str | None = None,
     ) -> MultimodalModerationResponse:
-        self._enforce_monthly_quota(tenant)
+        self._enforce_monthly_quota(tenant, "audio")
         started = perf_counter()
         transcription = await self._transcribe_audio_bytes(
             audio_bytes,
@@ -249,7 +250,7 @@ class ModerationService:
         video_bytes: bytes | None = None,
         filename: str | None = None,
     ) -> MultimodalModerationResponse:
-        self._enforce_monthly_quota(tenant)
+        self._enforce_monthly_quota(tenant, "video")
         started = perf_counter()
         safety_scan = self._scan_video_safety(video_bytes, filename)
         detection = self.engine.moderate_video(
@@ -379,7 +380,7 @@ class ModerationService:
             response_payload["modality_details"] = modality_details or {}
         return response_cls(**response_payload)
 
-    def _enforce_monthly_quota(self, tenant: AuthenticatedTenant) -> None:
+    def _enforce_monthly_quota(self, tenant: AuthenticatedTenant, modality: str) -> None:
         tenant_row = self.tenant_repository.get_tenant_by_slug(tenant.tenant_id)
         if not tenant_row:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Tenant not found.")
@@ -388,12 +389,15 @@ class ModerationService:
         start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
         end = start.replace(year=start.year + 1, month=1) if start.month == 12 else start.replace(month=start.month + 1)
         tenant_ids, monthly_quota, plan_name = self.tenant_repository.quota_scope_for_tenant(tenant_row)
-        used = len(self.moderation_repository.list_decisions_between_tenants(tenant_ids, start, end))
-        if used >= monthly_quota:
+        decisions = self.moderation_repository.list_request_results_between_tenants(tenant_ids, start, end)
+        used = sum(credits_for_modality(request.modality) for request, _result in decisions)
+        next_cost = credits_for_modality(modality)
+        if used + next_cost > monthly_quota:
             raise HTTPException(
                 status_code=status.HTTP_402_PAYMENT_REQUIRED,
                 detail=(
-                    f"Monthly quota exceeded for the {plan_name} plan "
-                    f"({used}/{monthly_quota} requests used). Upgrade the plan from Billing or wait for next month's reset."
+                    f"Monthly credit quota exceeded for the {plan_name} plan "
+                    f"({used}/{monthly_quota} credits used; this {modality} check needs {next_cost} credits). "
+                    "Upgrade the plan from Billing or wait for next month's reset."
                 ),
             )

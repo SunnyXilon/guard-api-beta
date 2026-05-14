@@ -106,7 +106,7 @@ Send testers the Vercel beta URL and ask them to test:
 
 For this beta profile:
 
-- Playground scans use quota.
+- Playground scans use moderation credits.
 - Stripe billing is disabled.
 - Google Vision is disabled.
 - Local CLIP image/video safety is disabled on the API service to keep deployment lighter.

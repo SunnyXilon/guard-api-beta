@@ -101,7 +101,7 @@ This runbook covers the remaining production work for auth, payments, database, 
 
 ## 9. Product Polish
 
-- Finalize public pricing and quota copy.
+- Finalize public pricing and moderation-credit copy.
 - Add final Terms, Privacy, Refund, and acceptable-use pages.
 - Verify onboarding from blank account to first API call.
 - Verify review-case workflow: create risky moderation request, assign, add note, resolve, and confirm audit event.
@@ -113,5 +113,5 @@ This runbook covers the remaining production work for auth, payments, database, 
 - Add error monitoring for API exceptions and frontend runtime failures.
 - Set log retention and avoid logging raw customer content in external tools.
 - Define support routing, refund handling, and incident response owner.
-- Track funnel metrics: signups, workspace creation, checkout started, checkout completed, first API call, quota usage.
+- Track funnel metrics: signups, workspace creation, checkout started, checkout completed, first API call, and credit usage.
 - Use `docs/operations_runbook.md` and `docs/support_and_refund_process.md` as the launch operating checklist.

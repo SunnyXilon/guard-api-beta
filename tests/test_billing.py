@@ -40,5 +40,5 @@ def test_billing_webhook_updates_tenant_plan_in_development(client) -> None:
     assert status_response.status_code == 200
     payload = status_response.json()
     assert payload["plan_name"] == "growth"
-    assert payload["monthly_quota"] == 3000
+    assert payload["monthly_quota"] == 20000
     assert payload["subscription_status"] == "active"
