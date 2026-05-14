@@ -2588,9 +2588,9 @@ function PublicNextUpdateSection() {
     {
       title: "Adaptive Policy Memory",
       description:
-        "An intelligence layer in development that lets teams turn repeated scams, coded harassment, and resolved review cases into reusable moderation memory.",
+        "A developing intelligence layer that lets teams turn repeated scams, coded harassment, and resolved review cases into reusable moderation memory.",
       items: ["Review case learning", "Customer-specific patterns", "Coded abuse detection"],
-      status: "in development",
+      status: "developing",
     },
   ];
 
@@ -2604,7 +2604,7 @@ function PublicNextUpdateSection() {
               Upcoming updates
             </Badge>
             <h2 className="text-3xl font-semibold tracking-normal text-slate-950 dark:text-white">
-              Mobile review app is planned, and adaptive policy memory is in development.
+              Mobile review app is planned, and adaptive policy memory is developing.
             </h2>
             <p className="mt-4 text-slate-600 dark:text-slate-300">
               Guard API is expanding beyond the web dashboard with mobile moderation workflows and a practical
