@@ -1,6 +1,92 @@
 # Guard API
 
-`Guard API` is a startup-ready trust-and-safety API for UGC products. It includes persistent moderation storage, tenant API-key auth, durable audit logs, a separate inference service for transformer-backed text scoring, and a React marketing/demo UI.
+`Guard API` is a startup-ready trust-and-safety API for apps that accept user-generated content. It checks content before it is published, returns a clear `allow`, `review`, or `block` decision, and gives teams a dashboard for API keys, usage, review cases, policy thresholds, and billing.
+
+Use it for communities, marketplaces, creator tools, social features, chat, listing uploads, comments, voice notes, and video submissions.
+
+## What it can stop
+
+Guard API scores content across these safety categories:
+
+- Toxicity and insults
+- Harassment, bullying, and intimidation
+- Hate speech and protected-class attacks
+- Sexual content and sexual solicitation
+- Self-harm or suicide-risk language
+- Violence and threats
+- Extremism or terrorist promotion
+- Spam, scams, phishing, and wallet seed-phrase scams
+- Child-safety risk
+- PII leakage, credentials, emails, cards, and sensitive personal data
+- Illegal activity such as drugs, stolen accounts, fake documents, hacking, and fraud
+
+Every moderation response includes category scores, severity, matched policy labels, an explanation, a request ID, and the final action your app should take.
+
+## Four moderation modes
+
+Guard API currently supports **4 content modes**:
+
+| Mode | Endpoint | Common use cases |
+|---|---|---|
+| Text | `POST /moderate/text` | comments, DMs, reviews, listings, captions, form submissions |
+| Image | `POST /moderate/image` | profile photos, marketplace images, screenshots, OCR text, detected objects |
+| Audio | `POST /moderate/audio` | voice notes, audio clips, call snippets, transcript hints, uploaded audio files |
+| Video | `POST /moderate/video` | uploaded videos, short clips, sampled frame descriptions, OCR, detected objects, transcript hints |
+
+The product also includes a social inbox/webhook workflow for bringing external comments or events into the same moderation and review process.
+
+## Three decision modes
+
+Your backend sends content to Guard API before publishing. Guard API sends back one of **3 actions**:
+
+- `allow`: publish the content immediately.
+- `review`: hold the content and send it to a human review queue.
+- `block`: stop the content and show a safe rejection message.
+
+Example response:
+
+```json
+{
+  "request_id": "req_123",
+  "decision": {
+    "action": "block",
+    "triggered_categories": ["spam_scam", "pii_leakage"],
+    "explanation": "Content matched scam and sensitive-data extraction signals."
+  }
+}
+```
+
+## Try it in 5 minutes
+
+Start the API, inference service, and frontend locally:
+
+```bash
+python -m venv .venv
+.venv\\Scripts\\activate
+pip install -e .[dev]
+copy .env.example .env
+uvicorn inference_service.main:app --port 8001
+uvicorn app.main:app --port 8100
+```
+
+In another terminal:
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+Open `http://127.0.0.1:5173`, or call the API directly:
+
+```bash
+curl -X POST http://127.0.0.1:8100/moderate/text ^
+  -H "Content-Type: application/json" ^
+  -H "X-API-Key: rtcm_market_live_key" ^
+  -d "{\"text\":\"Guaranteed profit investment. Send your OTP and bank details now.\"}"
+```
+
+Expected result: a `block` decision for scam or personal-data extraction risk.
 
 ## What is implemented
 
