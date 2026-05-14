@@ -19,7 +19,7 @@ class BillingService:
         self.db = db
         self.settings = settings
 
-    def create_checkout_url(self, tenant: Tenant, plan_name: str) -> str:
+    def create_checkout_url(self, tenant: Tenant, plan_name: str, billing_scope: str = "account") -> str:
         if stripe is None or not self.settings.stripe_secret_key:
             raise HTTPException(
                 status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
@@ -34,7 +34,8 @@ class BillingService:
             )
 
         stripe.api_key = self.settings.stripe_secret_key
-        subscription_data = {"metadata": {"tenant_slug": tenant.slug, "plan_name": plan_name}}
+        checkout_metadata = {"tenant_slug": tenant.slug, "plan_name": plan_name, "billing_scope": billing_scope}
+        subscription_data = {"metadata": checkout_metadata}
         if plan_name == "starter" and self.settings.billing_trial_days > 0:
             subscription_data["trial_period_days"] = self.settings.billing_trial_days
 
@@ -45,7 +46,7 @@ class BillingService:
             line_items=[{"price": price_id, "quantity": 1}],
             success_url=self.settings.billing_success_url,
             cancel_url=self.settings.billing_cancel_url,
-            metadata={"tenant_slug": tenant.slug, "plan_name": plan_name},
+            metadata=checkout_metadata,
             subscription_data=subscription_data,
         )
         return str(session.url)
@@ -100,8 +101,12 @@ class BillingService:
         if not tenant:
             return
 
-        plan_name = (session.get("metadata") or {}).get("plan_name") or tenant.plan_name
-        for account_tenant in self._billing_tenants(tenant):
+        metadata = session.get("metadata") or {}
+        plan_name = metadata.get("plan_name") or tenant.plan_name
+        billing_scope = metadata.get("billing_scope") or "account"
+        for account_tenant in self._billing_tenants_for_scope(tenant, billing_scope):
+            if billing_scope == "workspace":
+                account_tenant.billing_scope = "workspace"
             account_tenant.plan_name = plan_name
             account_tenant.monthly_quota = self.settings.billing_plan_quotas.get(plan_name, account_tenant.monthly_quota)
             account_tenant.stripe_customer_id = session.get("customer") or account_tenant.stripe_customer_id
@@ -121,8 +126,12 @@ class BillingService:
         if tenant is None:
             return
 
-        plan_name = (subscription.get("metadata") or {}).get("plan_name") or tenant.plan_name
-        for account_tenant in self._billing_tenants(tenant):
+        metadata = subscription.get("metadata") or {}
+        plan_name = metadata.get("plan_name") or tenant.plan_name
+        billing_scope = metadata.get("billing_scope") or tenant.billing_scope
+        for account_tenant in self._billing_tenants_for_scope(tenant, billing_scope):
+            if billing_scope == "workspace":
+                account_tenant.billing_scope = "workspace"
             account_tenant.plan_name = plan_name
             account_tenant.monthly_quota = self.settings.billing_plan_quotas.get(plan_name, account_tenant.monthly_quota)
             account_tenant.stripe_subscription_id = subscription_id or account_tenant.stripe_subscription_id
@@ -134,6 +143,11 @@ class BillingService:
         self.db.commit()
 
     def _billing_tenants(self, tenant: Tenant) -> list[Tenant]:
+        return self._billing_tenants_for_scope(tenant, tenant.billing_scope)
+
+    def _billing_tenants_for_scope(self, tenant: Tenant, billing_scope: str) -> list[Tenant]:
+        if billing_scope == "workspace":
+            return [tenant]
         if tenant.billing_scope == "workspace":
             return [tenant]
         if tenant.clerk_org_id:

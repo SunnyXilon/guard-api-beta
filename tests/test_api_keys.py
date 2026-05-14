@@ -103,6 +103,19 @@ def test_moderation_key_cannot_create_api_keys(client) -> None:
     assert response.status_code == 403
 
 
+def test_active_api_key_count_is_limited(client) -> None:
+    client.app.state.settings.max_active_api_keys_per_workspace = 2
+
+    response = client.post(
+        "/api-keys",
+        headers=ADMIN_HEADERS,
+        json={"name": "one-too-many", "scopes": ["moderation"]},
+    )
+
+    assert response.status_code == 409
+    assert "Deactivate an old key" in response.json()["detail"]
+
+
 def test_policy_write_scope_requires_dashboard_scope(client) -> None:
     response = client.post(
         "/api-keys",

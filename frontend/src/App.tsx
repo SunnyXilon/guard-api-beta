@@ -48,6 +48,7 @@ const API_BASE = import.meta.env.VITE_API_BASE_URL ?? "http://127.0.0.1:8000";
 const TEXT_API_KEY = import.meta.env.VITE_DEMO_TEXT_API_KEY ?? "";
 const IMAGE_API_KEY = import.meta.env.VITE_DEMO_IMAGE_API_KEY ?? "";
 const DASHBOARD_DEMO_API_KEY = import.meta.env.VITE_DEMO_ADMIN_API_KEY ?? "";
+const PUBLIC_MEDIA_DEMO_ENABLED = import.meta.env.VITE_PUBLIC_MEDIA_DEMO_ENABLED === "true";
 const LAST_WORKSPACE_STORAGE_KEY = "guard-api-last-workspace-id";
 
 type AppProps = {
@@ -987,6 +988,10 @@ export function App({ clerkEnabled, clerkLoaded, clerkSignedIn, getClerkToken }:
 
   async function runImageModeration() {
     setDemoMode("image");
+    if (!PUBLIC_MEDIA_DEMO_ENABLED) {
+      setError("Sign in and use Playground to test image uploads on your own workspace.");
+      return;
+    }
     if (!IMAGE_API_KEY) {
       setError("Image demo API key is not configured.");
       return;
@@ -1028,6 +1033,10 @@ export function App({ clerkEnabled, clerkLoaded, clerkSignedIn, getClerkToken }:
 
   async function runAudioModeration() {
     setDemoMode("audio");
+    if (!PUBLIC_MEDIA_DEMO_ENABLED) {
+      setError("Sign in and use Playground to test audio on your own workspace.");
+      return;
+    }
     if (!TEXT_API_KEY) {
       setError("Audio demo API key is not configured.");
       return;
@@ -1089,6 +1098,10 @@ export function App({ clerkEnabled, clerkLoaded, clerkSignedIn, getClerkToken }:
 
   async function runVideoModeration() {
     setDemoMode("video");
+    if (!PUBLIC_MEDIA_DEMO_ENABLED) {
+      setError("Sign in and use Playground to test video on your own workspace.");
+      return;
+    }
     if (!TEXT_API_KEY) {
       setError("Video demo API key is not configured.");
       return;
@@ -2043,7 +2056,7 @@ export function App({ clerkEnabled, clerkLoaded, clerkSignedIn, getClerkToken }:
     }
   }
 
-  async function startBillingCheckout(planName: string) {
+  async function startBillingCheckout(planName: string, billingScope: "account" | "workspace" = "account") {
     setDashboardLoading(true);
     setDashboardError("");
     setDashboardSaved("");
@@ -2054,7 +2067,7 @@ export function App({ clerkEnabled, clerkLoaded, clerkSignedIn, getClerkToken }:
           "Content-Type": "application/json",
           Authorization: `Bearer ${dashboardToken}`,
         },
-        body: JSON.stringify({ plan_name: planName }),
+        body: JSON.stringify({ plan_name: planName, billing_scope: billingScope }),
       });
       if (!response.ok) {
         let detail = "";
@@ -2107,6 +2120,10 @@ export function App({ clerkEnabled, clerkLoaded, clerkSignedIn, getClerkToken }:
     if (!dashboard || billingStatus?.billing_scope === nextScope) {
       return;
     }
+    if (nextScope === "workspace") {
+      await startBillingCheckout((billingStatus?.plan_name || dashboard.usage.plan_name || "starter").toLowerCase(), "workspace");
+      return;
+    }
     setDashboardLoading(true);
     setDashboardError("");
     setDashboardSaved("");
@@ -2135,11 +2152,7 @@ export function App({ clerkEnabled, clerkLoaded, clerkSignedIn, getClerkToken }:
         },
       });
       await loadDashboard("");
-      setDashboardSaved(
-        nextScope === "workspace"
-          ? "This workspace now has separate billing."
-          : "This workspace now uses shared account billing.",
-      );
+      setDashboardSaved("This workspace now uses shared account billing.");
     } catch (caught) {
       setDashboardError(caught instanceof Error ? caught.message : "Unable to update billing scope.");
     } finally {
@@ -3327,7 +3340,7 @@ type ClientDashboardProps = {
   onDeleteSocialAccount: (accountId: string) => void;
   onCreateSocialEvent: (event: SocialEventCreateInput) => void;
   onApplySocialAction: (eventId: string, actionType: SocialActionType) => void;
-  onStartBillingCheckout: (planName: string) => void;
+  onStartBillingCheckout: (planName: string, billingScope?: "account" | "workspace") => void;
   onOpenBillingPortal: () => void;
   onUpdateBillingScope: (billingScope: "account" | "workspace") => void;
   onWorkspaceShieldComplete: () => void;
@@ -6113,7 +6126,7 @@ function BillingPanel({
   billingStatus: BillingStatus | null;
   usage: DashboardSummary["usage"];
   loading: boolean;
-  onStartCheckout: (planName: string) => void;
+  onStartCheckout: (planName: string, billingScope?: "account" | "workspace") => void;
   onOpenPortal: () => void;
   onUpdateBillingScope: (billingScope: "account" | "workspace") => void;
 }) {
@@ -6138,8 +6151,8 @@ function BillingPanel({
               <p className="text-sm font-medium text-slate-900 dark:text-white">Billing scope</p>
               <p className="mt-1 text-sm text-muted-foreground">
                 {billingScope === "workspace"
-                  ? "This workspace has its own plan, credits, and billing."
-                  : "Unlimited workspaces can share this account credit pool until a workspace buys a separate plan."}
+                  ? "This workspace has its own paid plan, credits, and billing."
+                  : "Unlimited workspaces share this account credit pool until checkout creates a separate paid workspace plan."}
               </p>
             </div>
             <Badge variant={billingScope === "workspace" ? "secondary" : "success"}>
@@ -6159,9 +6172,9 @@ function BillingPanel({
               type="button"
               variant={billingScope === "workspace" ? "default" : "outline"}
               disabled={loading || billingScope === "workspace"}
-              onClick={() => onUpdateBillingScope("workspace")}
+              onClick={() => onStartCheckout((currentPlan || "starter").toLowerCase(), "workspace")}
             >
-              Separate workspace billing
+              Buy separate workspace plan
             </Button>
           </div>
         </div>

@@ -70,6 +70,7 @@ class Settings(BaseSettings):
     )
     self_service_onboarding_enabled: bool = True
     trial_workspace_limit: int = 3
+    max_active_api_keys_per_workspace: int = 20
     bootstrap_monthly_quota: int = 3000
     stripe_secret_key: str = ""
     stripe_webhook_secret: str = ""

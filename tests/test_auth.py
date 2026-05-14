@@ -235,8 +235,29 @@ def test_workspace_billing_scope_uses_separate_quota(client) -> None:
         headers={"Authorization": f"Bearer {second_token}"},
         json={"billing_scope": "workspace"},
     )
-    assert scope_response.status_code == 200
-    assert scope_response.json()["billing_scope"] == "workspace"
+    assert scope_response.status_code == 409
+
+    event = {
+        "type": "checkout.session.completed",
+        "data": {
+            "object": {
+                "client_reference_id": "separate-scope",
+                "customer": "cus_workspace",
+                "subscription": "sub_workspace",
+                "metadata": {
+                    "tenant_slug": "separate-scope",
+                    "plan_name": "starter",
+                    "billing_scope": "workspace",
+                },
+            }
+        },
+    }
+    webhook_response = client.post("/billing/webhook", json=event)
+    assert webhook_response.status_code == 200
+
+    workspace_status = client.get("/billing/status", headers={"Authorization": f"Bearer {second_token}"})
+    assert workspace_status.status_code == 200
+    assert workspace_status.json()["billing_scope"] == "workspace"
 
     db = client.app.state.session_factory()
     try:
@@ -265,6 +286,33 @@ def test_workspace_billing_scope_uses_separate_quota(client) -> None:
         headers={"X-API-Key": first_key},
         json={"text": "Shared account quota should now be exhausted."},
     ).status_code == 402
+
+
+def test_active_workspace_subscription_cannot_be_merged_without_billing_portal(client) -> None:
+    headers = {"X-Clerk-User-Id": "user_workspace_merge_block"}
+    response = client.post("/onboarding/tenant", headers=headers, json={"workspace_name": "Merge Block"})
+    assert response.status_code == 200
+    token = response.json()["dashboard_session"]["access_token"]
+
+    db = client.app.state.session_factory()
+    try:
+        tenant = db.query(Tenant).filter(Tenant.slug == "merge-block").one()
+        tenant.billing_scope = "workspace"
+        tenant.subscription_status = "active"
+        tenant.stripe_subscription_id = "sub_merge_block"
+        db.add(tenant)
+        db.commit()
+    finally:
+        db.close()
+
+    scope_response = client.patch(
+        "/billing/scope",
+        headers={"Authorization": f"Bearer {token}"},
+        json={"billing_scope": "account"},
+    )
+
+    assert scope_response.status_code == 409
+    assert "billing portal" in scope_response.json()["detail"]
 
 
 def test_clerk_user_can_delete_workspace_without_multiplying_quota(client) -> None:

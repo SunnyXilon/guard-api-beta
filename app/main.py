@@ -819,6 +819,15 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         tenant_row = tenant_repo.get_tenant_by_slug(tenant.tenant_id)
         if not tenant_row:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Tenant not found.")
+        active_key_count = len([key for key in tenant_repo.list_api_keys(tenant_row.id) if key.is_active])
+        if cfg.max_active_api_keys_per_workspace > 0 and active_key_count >= cfg.max_active_api_keys_per_workspace:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=(
+                    f"This workspace already has {active_key_count} active API keys. "
+                    "Deactivate an old key before creating another one."
+                ),
+            )
         api_key, raw_key = tenant_repo.create_generated_api_key(tenant_row, request_body.name, request_body.scopes)
         AuditService(ModerationRepository(db)).log_event(
             tenant_id=tenant_row.id,
@@ -948,6 +957,21 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         tenant_row = tenant_repo.get_tenant_by_slug(tenant.tenant_id)
         if not tenant_row or not tenant_row.is_active:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Tenant not found.")
+        if request_body.billing_scope == "workspace" and tenant_row.billing_scope != "workspace":
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Separate workspace billing requires checkout for this workspace first.",
+            )
+        if (
+            request_body.billing_scope == "account"
+            and tenant_row.billing_scope == "workspace"
+            and tenant_row.subscription_status in {"active", "trialing", "past_due"}
+            and tenant_row.stripe_subscription_id
+        ):
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="This workspace has its own subscription. Cancel or move it in the billing portal before switching back to shared account billing.",
+            )
 
         tenant_repo.set_billing_scope(tenant_row, request_body.billing_scope)
         AuditService(ModerationRepository(db)).log_event(
@@ -973,7 +997,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         tenant_row = TenantRepository(db).get_tenant_by_slug(tenant.tenant_id)
         if not tenant_row:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Tenant not found.")
-        checkout_url = BillingService(db, cfg).create_checkout_url(tenant_row, request_body.plan_name)
+        checkout_url = BillingService(db, cfg).create_checkout_url(
+            tenant_row,
+            request_body.plan_name,
+            request_body.billing_scope,
+        )
         return BillingCheckoutResponse(checkout_url=checkout_url)
 
     @app.post("/billing/portal", response_model=BillingPortalResponse)

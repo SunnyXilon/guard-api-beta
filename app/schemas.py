@@ -228,6 +228,7 @@ class TenantOnboardingResponse(BaseModel):
 
 class BillingCheckoutRequest(BaseModel):
     plan_name: str = Field(min_length=2, max_length=80)
+    billing_scope: str = Field(default="account", pattern="^(account|workspace)$")
 
 
 class BillingScopeUpdate(BaseModel):
