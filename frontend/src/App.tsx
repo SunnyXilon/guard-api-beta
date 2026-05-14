@@ -739,30 +739,30 @@ const billingPlans = [
     name: "starter",
     price: "$15",
     cadence: "month",
-    quota: 5_000,
+    quota: 3_000,
     audience: "For early apps testing real moderation traffic",
-    overage: "Includes up to 500 image scans if used only for images",
-    trial: "30-day free trial",
-    features: ["1 workspace", "5,000 moderation credits", "Text, image, audio, and video modes", "Basic review queue"],
+    overage: "Includes up to 300 image scans if used only for images",
+    trial: "15-day free trial",
+    features: ["Unlimited workspaces", "3,000 moderation credits", "Text, image, audio, and video modes", "Basic review queue"],
   },
   {
     name: "growth",
     price: "$29",
     cadence: "month",
-    quota: 20_000,
+    quota: 10_000,
     audience: "For small production marketplaces and communities",
-    overage: "Includes up to 2,000 image scans if used only for images",
-    features: ["20,000 moderation credits", "Policy threshold controls", "Review case assignment", "Email support"],
+    overage: "Includes up to 1,000 image scans if used only for images",
+    features: ["Unlimited workspaces", "10,000 moderation credits", "Policy threshold controls", "Email support"],
     badge: "Most teams",
   },
   {
     name: "scale",
     price: "$69",
     cadence: "month",
-    quota: 75_000,
+    quota: 20_000,
     audience: "For higher-volume trust operations",
-    overage: "Includes up to 7,500 image scans if used only for images",
-    features: ["75,000 moderation credits", "Priority review workflows", "Audit-ready activity logs", "Priority support"],
+    overage: "Includes up to 2,000 image scans if used only for images",
+    features: ["Unlimited workspaces", "20,000 moderation credits", "Audit-ready activity logs", "Priority support"],
   },
 ];
 
@@ -2895,7 +2895,7 @@ function PublicPricingSection({ onDashboard }: { onDashboard: () => void }) {
               Plans and trial
             </Badge>
             <h2 className="text-3xl font-semibold tracking-normal text-slate-950 dark:text-white">
-              Start with a 30-day free trial.
+              Start with a 15-day free trial.
             </h2>
             <p className="mt-3 text-slate-600 dark:text-slate-300">
               Create a workspace, test real moderation traffic, and upgrade when your volume grows.
@@ -2904,7 +2904,7 @@ function PublicPricingSection({ onDashboard }: { onDashboard: () => void }) {
           <div className="rounded-lg border border-teal-200 bg-white p-5 shadow-sm dark:border-teal-400/20 dark:bg-slate-950">
             <div className="flex flex-wrap items-center justify-between gap-4">
               <div>
-                <p className="text-sm font-medium text-slate-900 dark:text-white">Starter trial includes 5,000 moderation credits</p>
+                <p className="text-sm font-medium text-slate-900 dark:text-white">Starter trial includes 3,000 moderation credits</p>
                 <p className="mt-1 text-sm text-muted-foreground">
                   Text is 1 credit, image and audio are 10 credits, and video is 25 credits per check.
                 </p>
@@ -6107,7 +6107,7 @@ function BillingPanel({
               <p className="mt-1 text-sm text-muted-foreground">
                 {billingScope === "workspace"
                   ? "This workspace has its own plan, credits, and billing."
-                  : "This workspace shares one account credit pool with other shared-billing workspaces."}
+                  : "Unlimited workspaces can share this account credit pool until a workspace buys a separate plan."}
               </p>
             </div>
             <Badge variant={billingScope === "workspace" ? "secondary" : "success"}>

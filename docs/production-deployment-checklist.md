@@ -24,7 +24,7 @@ Use this before exposing Guard API to real customer traffic.
 - Set `RTCM_STRIPE_WEBHOOK_SECRET`.
 - Set `RTCM_BILLING_SUCCESS_URL` and `RTCM_BILLING_CANCEL_URL`.
 - Set `RTCM_BILLING_PORTAL_RETURN_URL`.
-- Set `RTCM_BILLING_TRIAL_DAYS=30` for the first-month free trial.
+- Set `RTCM_BILLING_TRIAL_DAYS=15` for the 15-day free trial.
 - Set `RTCM_BILLING_PLAN_PRICE_IDS` with `starter`, `growth`, and `scale` Stripe price IDs.
 - Configure the Stripe webhook endpoint: `/billing/webhook`.
 - Confirm `/ready` reports billing as configured after secrets are deployed.

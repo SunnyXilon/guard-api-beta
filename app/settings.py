@@ -69,7 +69,7 @@ class Settings(BaseSettings):
         "marketplace:rtcm_market_admin_key"
     )
     self_service_onboarding_enabled: bool = True
-    bootstrap_monthly_quota: int = 5000
+    bootstrap_monthly_quota: int = 3000
     stripe_secret_key: str = ""
     stripe_webhook_secret: str = ""
     clerk_jwks_url: str = ""
@@ -80,13 +80,13 @@ class Settings(BaseSettings):
     billing_success_url: str = "http://127.0.0.1:5173?billing=success"
     billing_cancel_url: str = "http://127.0.0.1:5173?billing=cancelled"
     billing_portal_return_url: str = "http://127.0.0.1:5173/dashboard"
-    billing_trial_days: int = 30
+    billing_trial_days: int = 15
     billing_required: bool = False
     billing_plan_price_ids: dict[str, str] = {}
     billing_plan_quotas: dict[str, int] = {
-        "starter": 5000,
-        "growth": 20000,
-        "scale": 75000,
+        "starter": 3000,
+        "growth": 10000,
+        "scale": 20000,
     }
     request_log_sampling: float = 1.0
     meta_graph_api_base_url: str = "https://graph.facebook.com/v19.0"
