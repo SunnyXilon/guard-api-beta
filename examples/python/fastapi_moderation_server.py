@@ -59,12 +59,14 @@ async def create_voice_note(
     voice_note_id: str = Form(""),
     user_id: str = Form(""),
     transcript_hint: str = Form(""),
+    duration_seconds: float | None = Form(None),
 ):
     temp_path = await _save_upload(audio)
     try:
         moderation = guard.moderate_audio(
             temp_path,
             transcript_hint=transcript_hint,
+            duration_seconds=duration_seconds,
             metadata={
                 "content_id": voice_note_id,
                 "user_id": user_id,

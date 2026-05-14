@@ -58,6 +58,7 @@ app.post("/voice-notes", upload.single("audio"), async (req, res, next) => {
     const moderation = await guard.moderateAudio({
       filePath: req.file.path,
       transcriptHint: req.body.transcript_hint || "",
+      durationSeconds: req.body.duration_seconds,
       metadata: {
         content_id: req.body.voiceNoteId,
         user_id: req.body.userId,
@@ -132,4 +133,3 @@ app.use((error, _req, res, _next) => {
 app.listen(9000, () => {
   console.log("Example customer backend running on http://127.0.0.1:9000");
 });
-

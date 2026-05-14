@@ -27,7 +27,7 @@ from app.services.audit_service import AuditService
 from app.services.policy_service import PolicyService
 from app.services.review_service import ReviewService
 from app.taxonomy import DecisionAction
-from app.usage_credits import credits_for_modality
+from app.usage_credits import credits_for_record, credits_for_usage
 from app.vision_safety import LocalVisionSafetyScanner, VisionSafetyResult
 
 
@@ -56,7 +56,8 @@ class ModerationService:
     async def moderate_text(
         self, request: TextModerationRequest, tenant: AuthenticatedTenant
     ) -> TextModerationResponse:
-        self._enforce_monthly_quota(tenant, "text")
+        credit_cost = credits_for_usage("text")
+        self._enforce_monthly_quota(tenant, "text", credit_cost)
         started = perf_counter()
         inference = await self.inference_client.score_text(
             request.text,
@@ -70,7 +71,7 @@ class ModerationService:
         return self._persist_response(
             tenant=tenant,
             content_text=request.text,
-            content_metadata=request.metadata.model_dump(mode="json"),
+            content_metadata=self._billing_metadata(request.metadata.model_dump(mode="json"), credit_cost),
             modality="text",
             detection_results=detection.results,
             decision=decision,
@@ -91,9 +92,10 @@ class ModerationService:
         image_bytes: bytes | None = None,
         filename: str | None = None,
     ) -> MultimodalModerationResponse:
-        self._enforce_monthly_quota(tenant, "image")
+        credit_cost = credits_for_usage("image")
+        self._enforce_monthly_quota(tenant, "image", credit_cost)
         started = perf_counter()
-        vision_scan = self._scan_image_bytes(image_bytes)
+        vision_scan = self._scan_image_bytes(image_bytes, include_ocr=None if not request.ocr_text.strip() else False)
         safety_scan = self._scan_image_safety(image_bytes)
         detected_objects = self._merge_unique(request.detected_objects, vision_scan.labels if vision_scan else [])
         ocr_text = "\n".join(
@@ -120,6 +122,7 @@ class ModerationService:
                     "scanner_fallback_used": vision_scan.fallback_used,
                     "scanner_error": vision_scan.error,
                     "vision_labels": vision_scan.labels,
+                    "vision_ocr_scanned": vision_scan.ocr_scanned,
                 }
             )
         if safety_scan:
@@ -128,7 +131,7 @@ class ModerationService:
         return self._persist_response(
             tenant=tenant,
             content_text=detection.extracted_text or request.image_url or filename or "[image payload]",
-            content_metadata=request.metadata.model_dump(mode="json"),
+            content_metadata=self._billing_metadata(request.metadata.model_dump(mode="json"), credit_cost),
             modality="image",
             detection_results=detection.results,
             decision=decision,
@@ -144,10 +147,10 @@ class ModerationService:
             modality_details=modality_details,
         )
 
-    def _scan_image_bytes(self, image_bytes: bytes | None) -> ImageScanResult | None:
+    def _scan_image_bytes(self, image_bytes: bytes | None, include_ocr: bool | None = None) -> ImageScanResult | None:
         if not image_bytes:
             return None
-        return self.image_scanner.scan(image_bytes)
+        return self.image_scanner.scan(image_bytes, include_ocr=include_ocr)
 
     def _scan_image_safety(self, image_bytes: bytes | None) -> VisionSafetyResult | None:
         if not image_bytes:
@@ -174,7 +177,13 @@ class ModerationService:
         filename: str | None = None,
         content_type: str | None = None,
     ) -> MultimodalModerationResponse:
-        self._enforce_monthly_quota(tenant, "audio")
+        if audio_bytes is not None and request.duration_seconds is None:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail="Uploaded audio moderation requires duration_seconds for per-minute billing.",
+            )
+        credit_cost = credits_for_usage("audio", request.duration_seconds)
+        self._enforce_monthly_quota(tenant, "audio", credit_cost)
         started = perf_counter()
         transcription = await self._transcribe_audio_bytes(
             audio_bytes,
@@ -192,7 +201,11 @@ class ModerationService:
         return self._persist_response(
             tenant=tenant,
             content_text=detection.extracted_text or filename or request.audio_url or "[audio payload]",
-            content_metadata=request.metadata.model_dump(mode="json"),
+            content_metadata=self._billing_metadata(
+                request.metadata.model_dump(mode="json"),
+                credit_cost,
+                duration_seconds=request.duration_seconds,
+            ),
             modality="audio",
             detection_results=detection.results,
             decision=decision,
@@ -209,6 +222,8 @@ class ModerationService:
                 **detection.details,
                 "uploaded_filename": filename,
                 "audio_content_type": content_type,
+                "credit_cost": credit_cost,
+                "duration_seconds": request.duration_seconds,
                 "transcription_provider": transcription.provider if transcription else "manual_hint",
                 "transcription_model": transcription.model if transcription else "manual_hint",
                 "transcription_fallback_used": transcription.fallback_used if transcription else False,
@@ -250,7 +265,13 @@ class ModerationService:
         video_bytes: bytes | None = None,
         filename: str | None = None,
     ) -> MultimodalModerationResponse:
-        self._enforce_monthly_quota(tenant, "video")
+        if video_bytes is not None and request.duration_seconds is None:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail="Uploaded video moderation requires duration_seconds for beta per-minute billing.",
+            )
+        credit_cost = credits_for_usage("video", request.duration_seconds)
+        self._enforce_monthly_quota(tenant, "video", credit_cost)
         started = perf_counter()
         safety_scan = self._scan_video_safety(video_bytes, filename)
         detection = self.engine.moderate_video(
@@ -266,13 +287,19 @@ class ModerationService:
         modality_details = dict(detection.details)
         if video_bytes is not None:
             modality_details["uploaded_filename"] = filename
+        modality_details["credit_cost"] = credit_cost
+        modality_details["duration_seconds"] = request.duration_seconds
         if safety_scan:
             modality_details.update(self._vision_safety_details(safety_scan))
 
         return self._persist_response(
             tenant=tenant,
             content_text=detection.extracted_text or filename or request.video_url or "[video payload]",
-            content_metadata=request.metadata.model_dump(mode="json"),
+            content_metadata=self._billing_metadata(
+                request.metadata.model_dump(mode="json"),
+                credit_cost,
+                duration_seconds=request.duration_seconds,
+            ),
             modality="video",
             detection_results=detection.results,
             decision=decision,
@@ -310,6 +337,17 @@ class ModerationService:
                 for label in scan.labels
             ],
         }
+
+    @staticmethod
+    def _billing_metadata(
+        content_metadata: dict,
+        credit_cost: int,
+        duration_seconds: float | None = None,
+    ) -> dict:
+        content_metadata["credit_cost"] = credit_cost
+        if duration_seconds is not None:
+            content_metadata["duration_seconds"] = duration_seconds
+        return content_metadata
 
     def _persist_response(
         self,
@@ -380,7 +418,7 @@ class ModerationService:
             response_payload["modality_details"] = modality_details or {}
         return response_cls(**response_payload)
 
-    def _enforce_monthly_quota(self, tenant: AuthenticatedTenant, modality: str) -> None:
+    def _enforce_monthly_quota(self, tenant: AuthenticatedTenant, modality: str, credit_cost: int) -> None:
         tenant_row = self.tenant_repository.get_tenant_by_slug(tenant.tenant_id)
         if not tenant_row:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Tenant not found.")
@@ -390,8 +428,8 @@ class ModerationService:
         end = start.replace(year=start.year + 1, month=1) if start.month == 12 else start.replace(month=start.month + 1)
         tenant_ids, monthly_quota, plan_name = self.tenant_repository.quota_scope_for_tenant(tenant_row)
         decisions = self.moderation_repository.list_request_results_between_tenants(tenant_ids, start, end)
-        used = sum(credits_for_modality(request.modality) for request, _result in decisions)
-        next_cost = credits_for_modality(modality)
+        used = sum(credits_for_record(request.modality, request.content_metadata) for request, _result in decisions)
+        next_cost = credit_cost
         if used + next_cost > monthly_quota:
             raise HTTPException(
                 status_code=status.HTTP_402_PAYMENT_REQUIRED,

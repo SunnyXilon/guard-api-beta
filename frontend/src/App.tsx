@@ -367,6 +367,7 @@ app.listen(9000);`;
 const nodeAudioTemplate = `const form = new FormData();
 form.set("audio", audioBlob, "voice-note.mp3");
 form.set("transcript_hint", "optional fallback transcript");
+form.set("duration_seconds", "95");
 form.set("channel", "voice_message");
 
 const response = await fetch(\`\${process.env.GUARD_API_URL}/moderate/audio\`, {
@@ -406,6 +407,7 @@ if (moderation.decision.action === "block") rejectImage();`;
 const nodeVideoTemplate = `const form = new FormData();
 form.set("video", videoBlob, "upload.mp4");
 form.set("transcript_hint", "optional speech transcript or caption");
+form.set("duration_seconds", "130");
 form.set("frame_description", "short description from your video pipeline");
 form.set("ocr_text", "visible text detected in sampled frames");
 form.set("detected_objects", "phone,cash");
@@ -467,6 +469,7 @@ const pythonAudioTemplate = `with open("voice-note.mp3", "rb") as audio_file:
         files={"audio": ("voice-note.mp3", audio_file, "audio/mpeg")},
         data={
             "transcript_hint": "optional fallback transcript",
+            "duration_seconds": "95",
             "channel": "voice_message",
         },
         timeout=30,
@@ -510,6 +513,7 @@ const pythonVideoTemplate = `with open("upload.mp4", "rb") as video_file:
         files={"video": ("upload.mp4", video_file, "video/mp4")},
         data={
             "transcript_hint": "optional speech transcript or caption",
+            "duration_seconds": "130",
             "frame_description": "short description from your video pipeline",
             "ocr_text": "visible text detected in sampled frames",
             "detected_objects": "phone,cash",
@@ -741,9 +745,9 @@ const billingPlans = [
     cadence: "month",
     quota: 3_000,
     audience: "For early apps testing real moderation traffic",
-    overage: "Includes up to 300 image scans if used only for images",
+    overage: "Includes up to 300 image scans, 300 audio minutes, or 60 beta video minutes",
     trial: "15-day free trial",
-    features: ["Unlimited workspaces", "3,000 moderation credits", "Text, image, audio, and video modes", "Basic review queue"],
+    features: ["Unlimited workspaces after trial", "3,000 moderation credits", "Trial capped at 3 workspaces", "Basic review queue"],
   },
   {
     name: "growth",
@@ -751,7 +755,7 @@ const billingPlans = [
     cadence: "month",
     quota: 10_000,
     audience: "For small production marketplaces and communities",
-    overage: "Includes up to 1,000 image scans if used only for images",
+    overage: "Includes up to 1,000 image scans, 1,000 audio minutes, or 200 beta video minutes",
     features: ["Unlimited workspaces", "10,000 moderation credits", "Policy threshold controls", "Email support"],
     badge: "Most teams",
   },
@@ -761,7 +765,7 @@ const billingPlans = [
     cadence: "month",
     quota: 20_000,
     audience: "For higher-volume trust operations",
-    overage: "Includes up to 2,000 image scans if used only for images",
+    overage: "Includes up to 2,000 image scans, 2,000 audio minutes, or 400 beta video minutes",
     features: ["Unlimited workspaces", "20,000 moderation credits", "Audit-ready activity logs", "Priority support"],
   },
 ];
@@ -1036,10 +1040,12 @@ export function App({ clerkEnabled, clerkLoaded, clerkSignedIn, getClerkToken }:
     setAudioLoading(true);
     setError("");
     try {
+      const audioDurationSeconds = audioFile ? await getMediaDurationSeconds(audioFile) : null;
       const body = audioFile
         ? (() => {
             const formData = new FormData();
             formData.append("audio", audioFile);
+            formData.append("duration_seconds", String(audioDurationSeconds ?? 60));
             if (audioTranscript.trim()) {
               formData.append("transcript_hint", audioTranscript);
             }
@@ -1110,6 +1116,7 @@ export function App({ clerkEnabled, clerkLoaded, clerkSignedIn, getClerkToken }:
         ocr_text: frameOcrText,
         detected_objects: objects,
       };
+      const videoDurationSeconds = videoFile ? await getMediaDurationSeconds(videoFile) : null;
       const response = videoFile
         ? await fetch(`${API_BASE}/moderate/video`, {
             method: "POST",
@@ -1119,6 +1126,7 @@ export function App({ clerkEnabled, clerkLoaded, clerkSignedIn, getClerkToken }:
             body: (() => {
               const formData = new FormData();
               formData.append("video", videoFile);
+              formData.append("duration_seconds", String(videoDurationSeconds ?? 60));
               if (transcript) {
                 formData.append("transcript_hint", transcript);
               }
@@ -2906,7 +2914,7 @@ function PublicPricingSection({ onDashboard }: { onDashboard: () => void }) {
               <div>
                 <p className="text-sm font-medium text-slate-900 dark:text-white">Starter trial includes 3,000 moderation credits</p>
                 <p className="mt-1 text-sm text-muted-foreground">
-                  Text is 1 credit, image and audio are 10 credits, and video is 25 credits per check.
+                  Text is 1 credit, images are 10 credits, audio is 10 credits per started minute, and beta video is 50 credits per started minute.
                 </p>
               </div>
               <Button onClick={onDashboard}>
@@ -2954,7 +2962,7 @@ function PublicPricingSection({ onDashboard }: { onDashboard: () => void }) {
           ))}
         </div>
         <div className="mt-5 rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950 dark:border-amber-400/25 dark:bg-amber-950/35 dark:text-amber-100">
-          Media-heavy apps should watch credit use closely. Credit weights: text 1, image 10, audio 10, video 25.
+          Media-heavy apps should watch credit use closely. Credit weights: text 1, image 10, audio 10 per started minute, beta video 50 per started minute.
           Custom media limits can be offered for high-volume customers.
         </div>
       </div>
@@ -4609,8 +4617,10 @@ function ModerationPlaygroundPanel({
     }
     if (mode === "audio") {
       if (audioFile) {
+        const audioDurationSeconds = await getMediaDurationSeconds(audioFile);
         const formData = new FormData();
         formData.append("audio", audioFile);
+        formData.append("duration_seconds", String(audioDurationSeconds ?? 60));
         formData.append("transcript_hint", audioTranscript);
         formData.append("channel", "playground_audio");
         formData.append("region", "global");
@@ -4634,8 +4644,10 @@ function ModerationPlaygroundPanel({
         detected_objects: splitCommaList(videoObjects),
       };
       if (videoFile) {
+        const videoDurationSeconds = await getMediaDurationSeconds(videoFile);
         const formData = new FormData();
         formData.append("video", videoFile);
+        formData.append("duration_seconds", String(videoDurationSeconds ?? 60));
         formData.append("transcript_hint", videoTranscript);
         formData.append("frames", JSON.stringify([frame]));
         formData.append("channel", "playground_video");
@@ -4938,6 +4950,25 @@ function splitCommaList(value: string) {
     .filter(Boolean);
 }
 
+function getMediaDurationSeconds(file: File): Promise<number | null> {
+  return new Promise((resolve) => {
+    const media = document.createElement(file.type.startsWith("video/") ? "video" : "audio");
+    const objectUrl = URL.createObjectURL(file);
+    const cleanup = () => URL.revokeObjectURL(objectUrl);
+    media.preload = "metadata";
+    media.onloadedmetadata = () => {
+      const duration = Number.isFinite(media.duration) ? Math.ceil(media.duration) : null;
+      cleanup();
+      resolve(duration && duration > 0 ? duration : null);
+    };
+    media.onerror = () => {
+      cleanup();
+      resolve(null);
+    };
+    media.src = objectUrl;
+  });
+}
+
 function MarketplaceOverview({ dashboard }: { dashboard: DashboardSummary }) {
   return (
     <div className="grid gap-5">
@@ -5077,6 +5108,7 @@ function ApiDocsPanel({ apiKeys }: { apiKeys: ApiKeyInfo[] }) {
   -H "X-API-Key: ${keyPlaceholder}" \\
   -F "audio=@./voice-note.mp3" \\
   -F "transcript_hint=Optional context or fallback transcript" \\
+  -F "duration_seconds=95" \\
   -F "channel=voice_message" \\
   -F "region=global"`;
   const javascriptFetch = `const response = await fetch("${API_BASE}/moderate/text", {

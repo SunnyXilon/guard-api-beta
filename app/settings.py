@@ -69,6 +69,7 @@ class Settings(BaseSettings):
         "marketplace:rtcm_market_admin_key"
     )
     self_service_onboarding_enabled: bool = True
+    trial_workspace_limit: int = 3
     bootstrap_monthly_quota: int = 3000
     stripe_secret_key: str = ""
     stripe_webhook_secret: str = ""

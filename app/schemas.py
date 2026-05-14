@@ -36,6 +36,7 @@ class ImageModerationRequest(BaseModel):
 class AudioModerationRequest(BaseModel):
     audio_url: Optional[str] = None
     transcript_hint: str = ""
+    duration_seconds: Optional[float] = Field(default=None, ge=0)
     tenant_id: Optional[str] = None
     metadata: ContentMetadata = Field(default_factory=ContentMetadata)
 
@@ -51,6 +52,7 @@ class VideoModerationRequest(BaseModel):
     video_url: Optional[str] = None
     transcript_hint: str = ""
     frames: List[VideoFrame] = Field(default_factory=list)
+    duration_seconds: Optional[float] = Field(default=None, ge=0)
     tenant_id: Optional[str] = None
     metadata: ContentMetadata = Field(default_factory=ContentMetadata)
 

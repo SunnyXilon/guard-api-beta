@@ -3,7 +3,7 @@ from app.policy import evaluate_policy
 from app.schemas import CategoryResult, TenantPolicyConfig
 from app.taxonomy import DecisionAction, ModerationCategory, score_to_severity
 from app.image_scanner import ImageScanResult
-from app.models import Tenant
+from app.models import ModerationRequestRecord, Tenant
 from app.vision_safety import VisionLabelScore, VisionSafetyResult
 from shared.inference_schemas import InferenceLabelScore, InferenceResponse
 
@@ -396,6 +396,71 @@ def test_image_moderation_consumes_weighted_credits(client) -> None:
     assert "needs 10 credits" in response.json()["detail"]
 
 
+def test_audio_moderation_consumes_per_started_minute_credits(client) -> None:
+    db = client.app.state.session_factory()
+    try:
+        tenant = db.query(Tenant).filter_by(slug="marketplace").one()
+        tenant.monthly_quota = 19
+        db.add(tenant)
+        db.commit()
+    finally:
+        db.close()
+
+    rejected = client.post(
+        "/moderate/audio",
+        headers=MARKET_HEADERS,
+        json={"transcript_hint": "ordinary voice note", "duration_seconds": 61},
+    )
+
+    assert rejected.status_code == 402
+    assert "needs 20 credits" in rejected.json()["detail"]
+
+    db = client.app.state.session_factory()
+    try:
+        tenant = db.query(Tenant).filter_by(slug="marketplace").one()
+        tenant.monthly_quota = 20
+        db.add(tenant)
+        db.commit()
+    finally:
+        db.close()
+
+    accepted = client.post(
+        "/moderate/audio",
+        headers=MARKET_HEADERS,
+        json={"transcript_hint": "ordinary voice note", "duration_seconds": 61},
+    )
+
+    assert accepted.status_code == 200
+
+    db = client.app.state.session_factory()
+    try:
+        request = db.query(ModerationRequestRecord).filter_by(modality="audio").one()
+        assert request.content_metadata["credit_cost"] == 20
+        assert request.content_metadata["duration_seconds"] == 61
+    finally:
+        db.close()
+
+
+def test_video_moderation_consumes_beta_per_started_minute_credits(client) -> None:
+    db = client.app.state.session_factory()
+    try:
+        tenant = db.query(Tenant).filter_by(slug="marketplace").one()
+        tenant.monthly_quota = 149
+        db.add(tenant)
+        db.commit()
+    finally:
+        db.close()
+
+    response = client.post(
+        "/moderate/video",
+        headers=MARKET_HEADERS,
+        json={"transcript_hint": "ordinary clip", "duration_seconds": 121},
+    )
+
+    assert response.status_code == 402
+    assert "needs 150 credits" in response.json()["detail"]
+
+
 def test_review_queue_lists_flagged_cases(client) -> None:
     client.post(
         "/moderate/text",
@@ -491,12 +556,14 @@ def test_image_moderation_blocks_wallet_seed_phrase_scam(client) -> None:
 
 def test_image_upload_uses_scanner_labels_ocr_and_safe_search(client) -> None:
     class StubScanner:
-        def scan(self, image_bytes: bytes) -> ImageScanResult:
+        def scan(self, image_bytes: bytes, include_ocr: bool | None = None) -> ImageScanResult:
             assert image_bytes == b"fake-image"
+            assert include_ocr is None
             return ImageScanResult(
                 provider="stub-vision",
                 labels=["child", "bedroom"],
                 ocr_text="underage pics",
+                ocr_scanned=True,
                 safe_search={"adult": "POSSIBLE", "racy": "POSSIBLE", "violence": "VERY_UNLIKELY"},
             )
 
@@ -577,7 +644,7 @@ def test_video_upload_uses_local_visual_safety_frames(client) -> None:
         "/moderate/video",
         headers=MARKET_HEADERS,
         files={"video": ("test.mp4", b"fake-video", "video/mp4")},
-        data={"transcript_hint": "ordinary listing video", "channel": "listing_video"},
+        data={"transcript_hint": "ordinary listing video", "duration_seconds": "30", "channel": "listing_video"},
     )
 
     assert response.status_code == 200
@@ -617,7 +684,11 @@ def test_audio_upload_accepts_file_with_transcript_hint(client) -> None:
         "/moderate/audio",
         headers=DEFAULT_HEADERS,
         files={"audio": ("threat.wav", b"fake-wav", "audio/wav")},
-        data={"transcript_hint": "I will find you and you deserve pain", "channel": "voice_message"},
+        data={
+            "transcript_hint": "I will find you and you deserve pain",
+            "duration_seconds": "30",
+            "channel": "voice_message",
+        },
     )
 
     assert response.status_code == 200
@@ -626,6 +697,18 @@ def test_audio_upload_accepts_file_with_transcript_hint(client) -> None:
     assert payload["metadata"]["extracted_text"].startswith("I will find you")
     assert payload["modality_details"]["uploaded_filename"] == "threat.wav"
     assert payload["modality_details"]["transcription_fallback_used"] is True
+
+
+def test_audio_upload_requires_duration_for_billing(client) -> None:
+    response = client.post(
+        "/moderate/audio",
+        headers=DEFAULT_HEADERS,
+        files={"audio": ("threat.wav", b"fake-wav", "audio/wav")},
+        data={"transcript_hint": "I will find you and you deserve pain", "channel": "voice_message"},
+    )
+
+    assert response.status_code == 422
+    assert "duration_seconds" in response.json()["detail"]
 
 
 def test_audio_upload_rejects_unsupported_file_type(client) -> None:

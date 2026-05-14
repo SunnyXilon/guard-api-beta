@@ -118,6 +118,51 @@ def test_clerk_user_can_create_and_switch_multiple_workspaces(client) -> None:
     assert dashboard_response.json()["tenant"]["tenant_id"] == "first-workspace"
 
 
+def test_trial_account_workspace_creation_is_capped(client) -> None:
+    headers = {"X-Clerk-User-Id": "user_trial_workspace_cap"}
+
+    for index in range(1, 4):
+        response = client.post(
+            "/onboarding/tenant",
+            headers=headers,
+            json={"workspace_name": f"Trial Workspace {index}"},
+        )
+        assert response.status_code == 200
+
+    capped_response = client.post(
+        "/onboarding/tenant",
+        headers=headers,
+        json={"workspace_name": "Trial Workspace Four"},
+    )
+
+    assert capped_response.status_code == 403
+    assert "Trial accounts can create up to 3 workspaces" in capped_response.json()["detail"]
+
+
+def test_paid_account_can_create_more_than_trial_workspace_limit(client) -> None:
+    headers = {"X-Clerk-User-Id": "user_paid_workspace_cap"}
+
+    first_response = client.post("/onboarding/tenant", headers=headers, json={"workspace_name": "Paid Workspace 1"})
+    assert first_response.status_code == 200
+
+    db = client.app.state.session_factory()
+    try:
+        tenant = db.query(Tenant).filter(Tenant.clerk_user_id == "user_paid_workspace_cap").one()
+        tenant.subscription_status = "active"
+        db.add(tenant)
+        db.commit()
+    finally:
+        db.close()
+
+    for index in range(2, 5):
+        response = client.post(
+            "/onboarding/tenant",
+            headers=headers,
+            json={"workspace_name": f"Paid Workspace {index}"},
+        )
+        assert response.status_code == 200
+
+
 def test_clerk_user_can_rename_owned_workspace(client) -> None:
     headers = {"X-Clerk-User-Id": "user_rename"}
     create_response = client.post("/onboarding/tenant", headers=headers, json={"workspace_name": "Original Name"})

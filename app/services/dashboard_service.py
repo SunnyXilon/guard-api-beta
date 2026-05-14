@@ -12,7 +12,7 @@ from app.schemas import (
     UsageSummary,
 )
 from app.taxonomy import DecisionAction, ModerationCategory
-from app.usage_credits import credits_for_modality
+from app.usage_credits import credits_for_record
 
 
 class DashboardService:
@@ -56,7 +56,7 @@ class DashboardService:
         start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
         end = start.replace(year=start.year + 1, month=1) if start.month == 12 else start.replace(month=start.month + 1)
         decisions = self.moderation_repository.list_request_results_between_tenants(tenant_ids, start=start, end=end)
-        used_credits = sum(credits_for_modality(request.modality) for request, _result in decisions)
+        used_credits = sum(credits_for_record(request.modality, request.content_metadata) for request, _result in decisions)
         counts = Counter(result.action for _request, result in decisions)
         return UsageSummary(
             month=start.strftime("%Y-%m"),

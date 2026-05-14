@@ -648,6 +648,18 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
         tenant_repo = TenantRepository(db)
         existing_account_tenants = tenant_repo.list_tenants_by_clerk_owner(principal.user_id, principal.org_id)
+        if (
+            cfg.trial_workspace_limit > 0
+            and len(existing_account_tenants) >= cfg.trial_workspace_limit
+            and all(tenant.subscription_status == "trialing" for tenant in existing_account_tenants)
+        ):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=(
+                    f"Trial accounts can create up to {cfg.trial_workspace_limit} workspaces. "
+                    "Upgrade billing to add unlimited workspaces."
+                ),
+            )
         account_scope_tenants = [tenant for tenant in existing_account_tenants if tenant.billing_scope == "account"]
         quota_pool = account_scope_tenants or existing_account_tenants
         quota_owner = max(quota_pool, key=lambda row: row.monthly_quota) if quota_pool else None
@@ -1444,6 +1456,7 @@ async def _parse_audio_request(
     request_body = AudioModerationRequest(
         audio_url=_form_str(form.get("audio_url")) or None,
         transcript_hint=_form_str(form.get("transcript_hint")),
+        duration_seconds=_parse_optional_float(form.get("duration_seconds")),
         metadata=metadata,
     )
     return request_body, audio_bytes, getattr(upload, "filename", None), upload_content_type
@@ -1517,6 +1530,7 @@ async def _parse_video_request(
         video_url=_form_str(form.get("video_url")) or None,
         transcript_hint=_form_str(form.get("transcript_hint")),
         frames=frames,
+        duration_seconds=_parse_optional_float(form.get("duration_seconds")),
         metadata=metadata,
     )
     return request_body, video_bytes, getattr(upload, "filename", None)
@@ -1530,6 +1544,24 @@ def _parse_form_list(value: object) -> list[str]:
     if not isinstance(value, str) or not value.strip():
         return []
     return [item.strip() for item in value.split(",") if item.strip()]
+
+
+def _parse_optional_float(value: object) -> float | None:
+    if not isinstance(value, str) or not value.strip():
+        return None
+    try:
+        parsed = float(value)
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="duration_seconds must be a number.",
+        ) from exc
+    if parsed < 0:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="duration_seconds must be greater than or equal to 0.",
+        )
+    return parsed
 
 
 def _slugify(value: str) -> str:

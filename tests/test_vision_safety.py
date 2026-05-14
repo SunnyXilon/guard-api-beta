@@ -23,6 +23,13 @@ def test_google_vision_scanner_skips_when_disabled() -> None:
     assert "disabled" in result.error
 
 
+def test_google_vision_scanner_only_runs_ocr_for_text_like_labels() -> None:
+    scanner = GoogleVisionImageScanner(enabled=False)
+
+    assert scanner._should_run_ocr(["person", "outdoor", "tree"]) is False
+    assert scanner._should_run_ocr(["mobile phone", "screenshot"]) is True
+
+
 def test_context_dominated_unsafe_label_does_not_trigger_category() -> None:
     labels = _remove_context_dominated_unsafe_labels(
         [

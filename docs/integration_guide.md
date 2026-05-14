@@ -75,6 +75,7 @@ curl -X POST https://api.example.com/moderate/audio \
   -H "X-API-Key: rtcm_customer_live_key" \
   -F "audio=@voice-note.mp3" \
   -F "transcript_hint=Optional context or fallback transcript" \
+  -F "duration_seconds=95" \
   -F "content_id=voice_123" \
   -F "channel=voice_message" \
   -F "language=en"
@@ -86,6 +87,7 @@ If your app already has a transcript, you can also send JSON:
 {
   "audio_url": "https://cdn.example.com/audio/msg_123.mp3",
   "transcript_hint": "I will find you and you deserve pain.",
+  "duration_seconds": 95,
   "metadata": {
     "content_id": "voice_123",
     "channel": "voice_message",
@@ -95,6 +97,7 @@ If your app already has a transcript, you can also send JSON:
 ```
 
 Supported uploads include MP3, MP4/M4A, WAV, and WEBM up to 25 MB.
+Audio uses 10 credits per started minute. Uploaded files must include `duration_seconds`; transcript-only JSON requests default to one started minute when it is omitted.
 
 ## Video Moderation
 
@@ -107,6 +110,7 @@ curl -X POST https://api.example.com/moderate/video \
   -d '{
     "video_url": "https://cdn.example.com/video/clip_123.mp4",
     "transcript_hint": "message me on telegram for guaranteed profit",
+    "duration_seconds": 130,
     "frames": [
       {
         "timestamp_ms": 1000,
@@ -130,11 +134,13 @@ curl -X POST https://api.example.com/moderate/video \
   -H "X-API-Key: rtcm_customer_live_key" \
   -F "video=@clip.mp4" \
   -F "transcript_hint=message me on telegram for guaranteed profit" \
+  -F "duration_seconds=130" \
   -F "channel=listing_video" \
   -F "region=IN"
 ```
 
 The local visual safety model uses CLIP-style labels including the original violence labels plus explicit sexual content, nudity, adult content, sexual activity, suggestive image, weapons, blood, gore, drug use, illegal drugs, child unsafe content, and self harm. Install the ML extras with `pip install -e .[ml]` for local file scanning.
+Beta video uses 50 credits per started minute. Uploaded files must include `duration_seconds`; cue-only JSON requests default to one started minute when it is omitted.
 
 ## Response Handling
 

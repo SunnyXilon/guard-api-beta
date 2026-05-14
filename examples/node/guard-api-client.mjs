@@ -46,16 +46,22 @@ export class GuardApiClient {
     return this.#postForm("/moderate/image", form);
   }
 
-  async moderateAudio({ filePath, transcriptHint = "", metadata = {} }) {
+  async moderateAudio({ filePath, transcriptHint = "", durationSeconds, metadata = {} }) {
     const form = await this.#fileForm("audio", filePath);
     form.set("transcript_hint", transcriptHint);
+    if (durationSeconds !== undefined && durationSeconds !== null) {
+      form.set("duration_seconds", String(durationSeconds));
+    }
     this.#appendMetadata(form, metadata);
     return this.#postForm("/moderate/audio", form);
   }
 
-  async moderateVideo({ filePath, transcriptHint = "", frames = [], metadata = {} }) {
+  async moderateVideo({ filePath, transcriptHint = "", durationSeconds, frames = [], metadata = {} }) {
     const form = await this.#fileForm("video", filePath);
     form.set("transcript_hint", transcriptHint);
+    if (durationSeconds !== undefined && durationSeconds !== null) {
+      form.set("duration_seconds", String(durationSeconds));
+    }
     form.set("frames", JSON.stringify(frames));
     this.#appendMetadata(form, metadata);
     return this.#postForm("/moderate/video", form);
@@ -135,4 +141,3 @@ export function shouldHoldForReview(moderation) {
 export function shouldBlock(moderation) {
   return actionForDecision(moderation) === "block";
 }
-

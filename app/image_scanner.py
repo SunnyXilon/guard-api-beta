@@ -9,6 +9,7 @@ class ImageScanResult:
     provider: str
     labels: list[str] = field(default_factory=list)
     ocr_text: str = ""
+    ocr_scanned: bool = False
     safe_search: dict[str, str] = field(default_factory=dict)
     fallback_used: bool = False
     error: str | None = None
@@ -27,7 +28,7 @@ class GoogleVisionImageScanner:
         self.max_labels = max_labels
         self.enabled = enabled
 
-    def scan(self, image_bytes: bytes) -> ImageScanResult:
+    def scan(self, image_bytes: bytes, include_ocr: bool | None = None) -> ImageScanResult:
         if not self.enabled:
             return ImageScanResult(
                 provider=self.provider,
@@ -49,16 +50,19 @@ class GoogleVisionImageScanner:
             image = vision.Image(content=image_bytes)
 
             label_response = client.label_detection(image=image, max_results=self.max_labels)
-            text_response = client.text_detection(image=image)
             safe_response = client.safe_search_detection(image=image)
 
             self._raise_if_vision_error(label_response, "label_detection")
-            self._raise_if_vision_error(text_response, "text_detection")
             self._raise_if_vision_error(safe_response, "safe_search_detection")
 
             labels = [annotation.description for annotation in label_response.label_annotations]
-            text_annotations = list(text_response.text_annotations)
-            ocr_text = text_annotations[0].description if text_annotations else ""
+            should_run_ocr = self._should_run_ocr(labels) if include_ocr is None else include_ocr
+            ocr_text = ""
+            if should_run_ocr:
+                text_response = client.text_detection(image=image)
+                self._raise_if_vision_error(text_response, "text_detection")
+                text_annotations = list(text_response.text_annotations)
+                ocr_text = text_annotations[0].description if text_annotations else ""
             safe = safe_response.safe_search_annotation
             safe_search = {
                 "adult": self._likelihood_name(vision, safe.adult),
@@ -72,6 +76,7 @@ class GoogleVisionImageScanner:
                 provider=self.provider,
                 labels=labels,
                 ocr_text=ocr_text,
+                ocr_scanned=should_run_ocr,
                 safe_search=safe_search,
             )
         except Exception as exc:
@@ -85,3 +90,26 @@ class GoogleVisionImageScanner:
     @staticmethod
     def _likelihood_name(vision: Any, value: int) -> str:
         return vision.Likelihood(value).name
+
+    @staticmethod
+    def _should_run_ocr(labels: list[str]) -> bool:
+        text_indicators = {
+            "advertising",
+            "book",
+            "brand",
+            "document",
+            "font",
+            "handwriting",
+            "label",
+            "logo",
+            "mobile phone",
+            "poster",
+            "receipt",
+            "screenshot",
+            "signage",
+            "smartphone",
+            "text",
+            "web page",
+        }
+        normalized = " ".join(label.lower() for label in labels)
+        return any(indicator in normalized for indicator in text_indicators)

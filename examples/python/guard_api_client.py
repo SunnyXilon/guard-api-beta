@@ -48,12 +48,15 @@ class GuardApiClient:
         file_path: str | Path,
         *,
         transcript_hint: str = "",
+        duration_seconds: float | int | None = None,
         metadata: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         fields = {
             "transcript_hint": transcript_hint,
             **self._metadata_fields(metadata or {}),
         }
+        if duration_seconds is not None:
+            fields["duration_seconds"] = str(duration_seconds)
         return self._post_file("/moderate/audio", "audio", file_path, fields)
 
     def moderate_video(
@@ -61,6 +64,7 @@ class GuardApiClient:
         file_path: str | Path,
         *,
         transcript_hint: str = "",
+        duration_seconds: float | int | None = None,
         frames: list[dict[str, Any]] | None = None,
         metadata: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
@@ -71,6 +75,8 @@ class GuardApiClient:
             "frames": json.dumps(frames or []),
             **self._metadata_fields(metadata or {}),
         }
+        if duration_seconds is not None:
+            fields["duration_seconds"] = str(duration_seconds)
         return self._post_file("/moderate/video", "video", file_path, fields)
 
     def _post_json(self, route: str, payload: dict[str, Any]) -> dict[str, Any]:
@@ -134,4 +140,3 @@ def should_hold_for_review(moderation: dict[str, Any]) -> bool:
 
 def should_block(moderation: dict[str, Any]) -> bool:
     return decision_action(moderation) == "block"
-
