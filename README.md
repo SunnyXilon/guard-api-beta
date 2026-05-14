@@ -32,6 +32,12 @@
 - `GET /policies/me`
 - `GET /cases`
 
+Customer integration examples are in [`examples/`](examples/):
+
+- Node reusable client and Express server.
+- Python reusable client and FastAPI server.
+- Decision handling for `allow`, `review`, and `block`.
+
 Example request:
 
 ```json
@@ -100,6 +106,19 @@ curl -X POST http://127.0.0.1:8000/moderate/image ^
   -F "image=@C:\path\to\image.jpg" ^
   -F "channel=profile_upload"
 ```
+
+Example real audio upload:
+
+```bash
+curl -X POST http://127.0.0.1:8000/moderate/audio ^
+  -H "X-API-Key: rtcm_market_live_key" ^
+  -F "audio=@C:\path\to\voice-note.mp3" ^
+  -F "transcript_hint=Optional context or fallback transcript" ^
+  -F "channel=voice_message"
+```
+
+Uploaded audio is transcribed when `RTCM_OPENAI_API_KEY` is configured. Set `RTCM_AUDIO_TRANSCRIPTION_REQUIRED=true`
+in production if you sell audio-file moderation as a paid feature.
 
 Example video request:
 

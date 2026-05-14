@@ -8,7 +8,25 @@ Open the dashboard, go to **API keys**, and create a key with the `moderation` s
 
 Store the key only on your server. Do not put it in browser JavaScript, mobile apps, or public repositories.
 
-## 2. Send your first request
+## 2. Choose an integration template
+
+Copy one of the ready examples from the repository:
+
+- Node client: `examples/node/guard-api-client.mjs`
+- Node Express server: `examples/node/express-moderation-server.mjs`
+- Python client: `examples/python/guard_api_client.py`
+- Python FastAPI server: `examples/python/fastapi_moderation_server.py`
+
+Set:
+
+```bash
+GUARD_API_URL=https://api.your-domain.example
+GUARD_API_KEY=rtcm_customer_moderation_key
+```
+
+The examples show text, image, and audio moderation plus the product logic for `allow`, `review`, and `block`.
+
+## 3. Send your first request
 
 ```bash
 curl -X POST https://api.your-domain.example/moderate/text \
@@ -25,7 +43,7 @@ curl -X POST https://api.your-domain.example/moderate/text \
   }'
 ```
 
-## 3. Act on the decision
+## 4. Act on the decision
 
 The response includes:
 
@@ -40,7 +58,23 @@ Recommended product behavior:
 - `review`: hold the content and show it in the review queue.
 - `block`: stop the content and show a user-safe rejection message.
 
-## 4. Connect webhooks
+Example decision handler:
+
+```js
+if (moderation.decision.action === "allow") {
+  publishContent();
+}
+
+if (moderation.decision.action === "review") {
+  holdForModerator();
+}
+
+if (moderation.decision.action === "block") {
+  rejectContent();
+}
+```
+
+## 5. Connect webhooks
 
 Use `POST /connectors/webhook/events` when an external system wants Guard API to moderate comments, messages, or form submissions.
 
@@ -50,7 +84,7 @@ If `RTCM_CONNECTOR_WEBHOOK_SIGNING_SECRET` is configured, sign the raw JSON body
 X-RTCM-Signature: sha256=<hmac_sha256_hex>
 ```
 
-## 5. Production checklist
+## 6. Production checklist
 
 - Use a production moderation key.
 - Send requests from your backend only.

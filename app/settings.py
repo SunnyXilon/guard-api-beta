@@ -14,11 +14,26 @@ class Settings(BaseSettings):
 
     app_name: str = "Guard API"
     environment: str = "development"
+    expose_api_docs: bool | None = None
     session_secret: str = "dev-only-change-me"
     dashboard_session_ttl_seconds: int = 3600
     database_url: str = "sqlite:///./rtcm.db"
     inference_service_url: str = "http://127.0.0.1:8001"
     inference_timeout_seconds: float = 5.0
+    openai_api_key: str = ""
+    audio_transcription_model: str = "gpt-4o-mini-transcribe"
+    audio_transcription_timeout_seconds: float = 45.0
+    audio_transcription_required: bool = False
+    audio_upload_max_bytes: int = 25_000_000
+    audio_allowed_content_types: list[str] = [
+        "audio/mpeg",
+        "audio/mp4",
+        "audio/mpga",
+        "audio/m4a",
+        "audio/wav",
+        "audio/webm",
+        "video/mp4",
+    ]
     image_upload_max_bytes: int = 6_000_000
     image_allowed_content_types: list[str] = ["image/jpeg", "image/png", "image/webp"]
     image_scanning_required: bool = False
@@ -64,6 +79,7 @@ class Settings(BaseSettings):
     clerk_jwks_cache_ttl_seconds: int = 300
     billing_success_url: str = "http://127.0.0.1:5173?billing=success"
     billing_cancel_url: str = "http://127.0.0.1:5173?billing=cancelled"
+    billing_portal_return_url: str = "http://127.0.0.1:5173/dashboard"
     billing_trial_days: int = 30
     billing_required: bool = False
     billing_plan_price_ids: dict[str, str] = {}
@@ -151,6 +167,8 @@ class Settings(BaseSettings):
             problems.append(
                 "GOOGLE_APPLICATION_CREDENTIALS must be set when RTCM_IMAGE_SCANNING_REQUIRED is true."
             )
+        if self.audio_transcription_required and not self.openai_api_key:
+            problems.append("RTCM_OPENAI_API_KEY must be set when RTCM_AUDIO_TRANSCRIPTION_REQUIRED is true.")
 
         if problems:
             raise RuntimeError("Unsafe production configuration: " + " ".join(problems))

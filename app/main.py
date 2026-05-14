@@ -22,6 +22,7 @@ from pydantic import ValidationError
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
+from app.audio_transcriber import OpenAIAudioTranscriber
 from app.auth import get_dashboard_tenant, get_moderation_tenant, get_policy_admin_tenant
 from app.bootstrap import bootstrap_defaults, init_db
 from app.clerk_auth import ClerkPrincipal, require_clerk_principal
@@ -40,6 +41,7 @@ from app.schemas import (
     AuthenticatedTenant,
     BillingCheckoutRequest,
     BillingCheckoutResponse,
+    BillingPortalResponse,
     BillingScopeUpdate,
     BillingStatus,
     ContentMetadata,
@@ -116,6 +118,12 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             max_labels=cfg.google_vision_max_labels,
             enabled=bool(os.getenv("GOOGLE_APPLICATION_CREDENTIALS")) or cfg.image_scanning_required,
         )
+        app.state.audio_transcriber = OpenAIAudioTranscriber(
+            api_key=cfg.openai_api_key,
+            model=cfg.audio_transcription_model,
+            timeout_seconds=cfg.audio_transcription_timeout_seconds,
+            required=cfg.audio_transcription_required,
+        )
         app.state.vision_safety_scanner = LocalVisionSafetyScanner(
             enabled=cfg.local_vision_safety_enabled,
             model_name=cfg.local_vision_model_name,
@@ -135,11 +143,15 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         )
         yield
 
+    expose_docs = cfg.expose_api_docs if cfg.expose_api_docs is not None else cfg.environment != "production"
     app = FastAPI(
         title=cfg.app_name,
         version="0.2.0",
         description="Cloud-ready real-time trust and safety moderation platform.",
         lifespan=lifespan,
+        docs_url="/docs" if expose_docs else None,
+        redoc_url="/redoc" if expose_docs else None,
+        openapi_url="/openapi.json" if expose_docs else None,
     )
     app.add_middleware(
         CORSMiddleware,
@@ -233,6 +245,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             inference_client=request.app.state.inference_client,
             image_scanner=request.app.state.image_scanner,
             vision_safety_scanner=request.app.state.vision_safety_scanner,
+            audio_transcriber=request.app.state.audio_transcriber,
         )
 
     @app.get("/health")
@@ -327,11 +340,22 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     @app.post("/moderate/audio")
     async def moderate_audio(
-        request_body: AudioModerationRequest,
+        request: Request,
         tenant: AuthenticatedTenant = Depends(get_moderation_tenant),
         service: ModerationService = Depends(get_moderation_service),
     ):
-        return await service.moderate_audio(request_body, tenant)
+        request_body, audio_bytes, filename, content_type = await _parse_audio_request(
+            request,
+            cfg.audio_upload_max_bytes,
+            cfg.audio_allowed_content_types,
+        )
+        return await service.moderate_audio(
+            request_body,
+            tenant,
+            audio_bytes=audio_bytes,
+            filename=filename,
+            content_type=content_type,
+        )
 
     @app.post("/moderate/video")
     async def moderate_video(
@@ -369,11 +393,22 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     @app.post("/playground/moderate/audio")
     async def playground_moderate_audio(
-        request_body: AudioModerationRequest,
+        request: Request,
         tenant: AuthenticatedTenant = Depends(get_dashboard_tenant),
         service: ModerationService = Depends(get_moderation_service),
     ):
-        return await service.moderate_audio(request_body, tenant)
+        request_body, audio_bytes, filename, content_type = await _parse_audio_request(
+            request,
+            cfg.audio_upload_max_bytes,
+            cfg.audio_allowed_content_types,
+        )
+        return await service.moderate_audio(
+            request_body,
+            tenant,
+            audio_bytes=audio_bytes,
+            filename=filename,
+            content_type=content_type,
+        )
 
     @app.post("/playground/moderate/video")
     async def playground_moderate_video(
@@ -650,7 +685,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         )
         moderation_key, raw_moderation_key = tenant_repo.create_generated_api_key(
             tenant_row,
-            "production-webhook",
+            "server-moderation-key",
             ["moderation"],
         )
         AuditService(ModerationRepository(db)).log_event(
@@ -928,6 +963,17 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Tenant not found.")
         checkout_url = BillingService(db, cfg).create_checkout_url(tenant_row, request_body.plan_name)
         return BillingCheckoutResponse(checkout_url=checkout_url)
+
+    @app.post("/billing/portal", response_model=BillingPortalResponse)
+    async def billing_portal(
+        tenant: AuthenticatedTenant = Depends(get_policy_admin_tenant),
+        db: Session = Depends(get_db),
+    ) -> BillingPortalResponse:
+        tenant_row = TenantRepository(db).get_tenant_by_slug(tenant.tenant_id)
+        if not tenant_row:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Tenant not found.")
+        portal_url = BillingService(db, cfg).create_customer_portal_url(tenant_row)
+        return BillingPortalResponse(portal_url=portal_url)
 
     @app.post("/billing/webhook")
     async def billing_webhook(request: Request, db: Session = Depends(get_db)) -> dict[str, str]:
@@ -1349,6 +1395,58 @@ async def _parse_image_request(
         metadata=metadata,
     )
     return request_body, image_bytes, getattr(upload, "filename", None)
+
+
+async def _parse_audio_request(
+    request: Request,
+    max_bytes: int,
+    allowed_content_types: list[str],
+) -> tuple[AudioModerationRequest, bytes | None, str | None, str | None]:
+    content_type = request.headers.get("content-type", "")
+    if "multipart/form-data" not in content_type:
+        return AudioModerationRequest(**await request.json()), None, None, None
+
+    form = await request.form()
+    upload = form.get("audio")
+    if upload is None or not hasattr(upload, "read"):
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Multipart audio moderation requires an 'audio' file field.",
+        )
+    upload_content_type = getattr(upload, "content_type", None)
+    if upload_content_type not in allowed_content_types:
+        raise HTTPException(
+            status_code=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE,
+            detail=f"Unsupported audio type. Allowed: {', '.join(allowed_content_types)}.",
+        )
+
+    audio_bytes = await upload.read()
+    if len(audio_bytes) > max_bytes:
+        raise HTTPException(
+            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            detail=f"Audio upload exceeds {max_bytes} bytes.",
+        )
+
+    metadata = ContentMetadata(
+        content_id=_form_str(form.get("content_id")) or None,
+        user_id=_form_str(form.get("user_id")) or None,
+        language=_form_str(form.get("language")) or "en",
+        channel=_form_str(form.get("channel")) or "audio_upload",
+        region=_form_str(form.get("region")) or "global",
+    )
+    metadata_json = _form_str(form.get("metadata"))
+    if metadata_json:
+        try:
+            metadata = ContentMetadata(**json.loads(metadata_json))
+        except json.JSONDecodeError as exc:
+            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Invalid metadata JSON.") from exc
+
+    request_body = AudioModerationRequest(
+        audio_url=_form_str(form.get("audio_url")) or None,
+        transcript_hint=_form_str(form.get("transcript_hint")),
+        metadata=metadata,
+    )
+    return request_body, audio_bytes, getattr(upload, "filename", None), upload_content_type
 
 
 async def _parse_video_request(

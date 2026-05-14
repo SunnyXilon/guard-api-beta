@@ -6,6 +6,7 @@ from time import perf_counter
 from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
 
+from app.audio_transcriber import AudioTranscriptionResult, OpenAIAudioTranscriber
 from app.detectors import HybridModerationEngine
 from app.image_scanner import GoogleVisionImageScanner, ImageScanResult
 from app.inference_client import InferenceClient
@@ -37,12 +38,14 @@ class ModerationService:
         inference_client: InferenceClient,
         image_scanner: GoogleVisionImageScanner | None = None,
         vision_safety_scanner: LocalVisionSafetyScanner | None = None,
+        audio_transcriber: OpenAIAudioTranscriber | None = None,
     ) -> None:
         self.db = db
         self.engine = engine
         self.inference_client = inference_client
         self.image_scanner = image_scanner or GoogleVisionImageScanner()
         self.vision_safety_scanner = vision_safety_scanner or LocalVisionSafetyScanner(enabled=False)
+        self.audio_transcriber = audio_transcriber or OpenAIAudioTranscriber()
         self.moderation_repository = ModerationRepository(db)
         self.tenant_repository = TenantRepository(db)
         self.policy_service = PolicyService(self.tenant_repository)
@@ -163,18 +166,31 @@ class ModerationService:
         return merged
 
     async def moderate_audio(
-        self, request: AudioModerationRequest, tenant: AuthenticatedTenant
+        self,
+        request: AudioModerationRequest,
+        tenant: AuthenticatedTenant,
+        audio_bytes: bytes | None = None,
+        filename: str | None = None,
+        content_type: str | None = None,
     ) -> MultimodalModerationResponse:
         self._enforce_monthly_quota(tenant)
         started = perf_counter()
-        detection = self.engine.moderate_audio(request.transcript_hint)
+        transcription = await self._transcribe_audio_bytes(
+            audio_bytes,
+            filename=filename,
+            content_type=content_type,
+            prompt=request.transcript_hint,
+            language=request.metadata.language,
+        )
+        transcript = self._audio_transcript(request.transcript_hint, transcription)
+        detection = self.engine.moderate_audio(transcript)
         policy = self.policy_service.get_policy_for_tenant(tenant.tenant_id)
         decision = evaluate_policy(detection.results, policy)
         latency_ms = round((perf_counter() - started) * 1000, 2)
 
         return self._persist_response(
             tenant=tenant,
-            content_text=detection.extracted_text,
+            content_text=detection.extracted_text or filename or request.audio_url or "[audio payload]",
             content_metadata=request.metadata.model_dump(mode="json"),
             modality="audio",
             detection_results=detection.results,
@@ -188,8 +204,43 @@ class ModerationService:
                 extracted_text=detection.extracted_text,
             ),
             response_cls=MultimodalModerationResponse,
-            modality_details=detection.details,
+            modality_details={
+                **detection.details,
+                "uploaded_filename": filename,
+                "audio_content_type": content_type,
+                "transcription_provider": transcription.provider if transcription else "manual_hint",
+                "transcription_model": transcription.model if transcription else "manual_hint",
+                "transcription_fallback_used": transcription.fallback_used if transcription else False,
+                "transcription_error": transcription.error if transcription else None,
+            },
         )
+
+    async def _transcribe_audio_bytes(
+        self,
+        audio_bytes: bytes | None,
+        *,
+        filename: str | None,
+        content_type: str | None,
+        prompt: str,
+        language: str,
+    ) -> AudioTranscriptionResult | None:
+        if not audio_bytes:
+            return None
+        return await self.audio_transcriber.transcribe(
+            audio_bytes,
+            filename=filename or "audio.webm",
+            content_type=content_type or "audio/webm",
+            prompt=prompt,
+            language=language,
+        )
+
+    @staticmethod
+    def _audio_transcript(manual_hint: str, transcription: AudioTranscriptionResult | None) -> str:
+        transcribed_text = (transcription.text if transcription else "").strip()
+        manual_text = manual_hint.strip()
+        if transcribed_text and manual_text:
+            return f"{transcribed_text}\n\nContext hint: {manual_text}"
+        return transcribed_text or manual_text
 
     async def moderate_video(
         self,
@@ -336,10 +387,13 @@ class ModerationService:
         now = datetime.now(timezone.utc)
         start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
         end = start.replace(year=start.year + 1, month=1) if start.month == 12 else start.replace(month=start.month + 1)
-        tenant_ids, monthly_quota, _plan_name = self.tenant_repository.quota_scope_for_tenant(tenant_row)
+        tenant_ids, monthly_quota, plan_name = self.tenant_repository.quota_scope_for_tenant(tenant_row)
         used = len(self.moderation_repository.list_decisions_between_tenants(tenant_ids, start, end))
         if used >= monthly_quota:
             raise HTTPException(
                 status_code=status.HTTP_402_PAYMENT_REQUIRED,
-                detail="Monthly moderation quota exceeded. Upgrade or renew the tenant plan.",
+                detail=(
+                    f"Monthly quota exceeded for the {plan_name} plan "
+                    f"({used}/{monthly_quota} requests used). Upgrade the plan from Billing or wait for next month's reset."
+                ),
             )

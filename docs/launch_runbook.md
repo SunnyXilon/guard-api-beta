@@ -24,8 +24,10 @@ This runbook covers the remaining production work for auth, payments, database, 
   - `RTCM_BILLING_PLAN_PRICE_IDS={"starter":"price_...","growth":"price_...","scale":"price_..."}`
   - `RTCM_BILLING_SUCCESS_URL=https://app.<domain>?billing=success`
   - `RTCM_BILLING_CANCEL_URL=https://app.<domain>?billing=cancelled`
+  - `RTCM_BILLING_PORTAL_RETURN_URL=https://app.<domain>/dashboard`
 - Configure Stripe webhook endpoint:
   - `POST https://api.<domain>/billing/webhook`
+- Configure the Stripe customer portal so customers can update payment methods and cancel subscriptions.
 - Test `checkout.session.completed`, `customer.subscription.updated`, and `customer.subscription.deleted`.
 
 ## 3. Database
@@ -47,7 +49,19 @@ This runbook covers the remaining production work for auth, payments, database, 
   - `RTCM_IMAGE_SCANNING_REQUIRED=true`
 - Smoke test image upload with a real PNG/JPG/WEBP and confirm scanner metadata is returned.
 
-## 5. Social Connectors
+## 5. Audio Moderation
+
+- Create an OpenAI API key for server-side transcription.
+- Set:
+  - `RTCM_OPENAI_API_KEY=sk-proj-...`
+  - `RTCM_AUDIO_TRANSCRIPTION_MODEL=gpt-4o-mini-transcribe`
+  - `RTCM_AUDIO_TRANSCRIPTION_REQUIRED=true`
+  - `RTCM_AUDIO_UPLOAD_MAX_BYTES=25000000`
+- Keep the OpenAI key in the backend secret manager only.
+- Smoke test uploaded `.mp3`, `.wav`, `.m4a`, and `.webm` files through `/moderate/audio`.
+- Confirm the response includes `metadata.extracted_text` and `modality_details.transcription_provider`.
+
+## 6. Social Connectors
 
 - Create a Meta developer app and request the permissions needed for comment moderation, such as Instagram/Facebook comment management permissions.
 - Implement the customer OAuth flow so each influencer or Page owner connects their own account.
@@ -63,17 +77,18 @@ This runbook covers the remaining production work for auth, payments, database, 
 - When no token is present, the action is recorded locally so demos and review workflows still work.
 - Before launch, test with a real Meta sandbox/Page account and confirm the comment changes inside Instagram/Facebook.
 
-## 6. Deployment
+## 7. Deployment
 
 - Build API and inference containers from `Dockerfile.api` and `Dockerfile.inference`.
 - Use `docker-compose.production.yml` only as a reference or single-host deployment file; prefer managed Postgres in production.
 - Expose API through HTTPS at `https://api.<domain>`.
 - Deploy the frontend as a static Vite app with `VITE_API_BASE_URL=https://api.<domain>`.
+- Keep public Swagger/OpenAPI docs disabled with `RTCM_EXPOSE_API_DOCS=false`; customers should use the signed-in dashboard API docs and examples.
 - Configure health checks:
   - `/health` for process liveness.
   - `/ready` for dependency readiness.
 
-## 7. Security
+## 8. Security
 
 - Set a strong `RTCM_SESSION_SECRET`.
 - Set `RTCM_BOOTSTRAP_API_KEYS=false` and remove demo keys.
@@ -81,9 +96,10 @@ This runbook covers the remaining production work for auth, payments, database, 
 - Set `RTCM_CONNECTOR_WEBHOOK_SIGNING_SECRET=<random secret>` for signed connector webhook bodies.
 - Restrict `RTCM_CORS_ALLOWED_ORIGINS` to production frontend domains.
 - Store Stripe, Clerk, database, Redis, Google, and Meta credentials in the hosting platform secret manager.
+- Store OpenAI transcription credentials in the backend secret manager only.
 - Keep `secrets/`, `.env`, and `.env.production` out of git.
 
-## 8. Product Polish
+## 9. Product Polish
 
 - Finalize public pricing and quota copy.
 - Add final Terms, Privacy, Refund, and acceptable-use pages.
@@ -91,10 +107,11 @@ This runbook covers the remaining production work for auth, payments, database, 
 - Verify review-case workflow: create risky moderation request, assign, add note, resolve, and confirm audit event.
 - Record a short demo video and add screenshots to the landing page before launch.
 
-## 9. Operations
+## 10. Operations
 
 - Add uptime monitoring for `/health` and `/ready`.
 - Add error monitoring for API exceptions and frontend runtime failures.
 - Set log retention and avoid logging raw customer content in external tools.
 - Define support routing, refund handling, and incident response owner.
 - Track funnel metrics: signups, workspace creation, checkout started, checkout completed, first API call, quota usage.
+- Use `docs/operations_runbook.md` and `docs/support_and_refund_process.md` as the launch operating checklist.

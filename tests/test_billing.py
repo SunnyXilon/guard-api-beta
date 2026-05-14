@@ -11,6 +11,12 @@ def test_checkout_requires_stripe_configuration(client) -> None:
     assert response.status_code == 503
 
 
+def test_billing_portal_requires_stripe_configuration(client) -> None:
+    response = client.post("/billing/portal", headers=ADMIN_HEADERS)
+
+    assert response.status_code == 503
+
+
 def test_billing_webhook_updates_tenant_plan_in_development(client) -> None:
     event = {
         "type": "checkout.session.completed",

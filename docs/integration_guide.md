@@ -1,6 +1,13 @@
 # Guard API Integration Guide
 
-Guard API exposes tenant-scoped moderation endpoints for text, image, audio transcripts, and video frame fusion. Use moderation-scoped API keys in production apps and admin/dashboard keys only for internal tools.
+Guard API exposes tenant-scoped moderation endpoints for text, image, uploaded audio, and video frame fusion. Use moderation-scoped API keys in production apps and admin/dashboard keys only for internal tools.
+
+Ready-to-copy customer examples are available in:
+
+- `examples/node/guard-api-client.mjs`
+- `examples/node/express-moderation-server.mjs`
+- `examples/python/guard_api_client.py`
+- `examples/python/fastapi_moderation_server.py`
 
 ## Authentication
 
@@ -61,22 +68,33 @@ Send precomputed image metadata when another service already extracted OCR/label
 
 ## Audio Moderation
 
-Guard API currently moderates audio through transcripts. Run speech-to-text in your app or provider, then send the transcript:
+Upload real audio files when the backend has file bytes. Guard API transcribes the audio when transcription is configured:
 
 ```bash
 curl -X POST https://api.example.com/moderate/audio \
-  -H "Content-Type: application/json" \
   -H "X-API-Key: rtcm_customer_live_key" \
-  -d '{
-    "audio_url": "https://cdn.example.com/audio/msg_123.mp3",
-    "transcript_hint": "I will find you and you deserve pain.",
-    "metadata": {
-      "content_id": "voice_123",
-      "channel": "voice_message",
-      "language": "en"
-    }
-  }'
+  -F "audio=@voice-note.mp3" \
+  -F "transcript_hint=Optional context or fallback transcript" \
+  -F "content_id=voice_123" \
+  -F "channel=voice_message" \
+  -F "language=en"
 ```
+
+If your app already has a transcript, you can also send JSON:
+
+```json
+{
+  "audio_url": "https://cdn.example.com/audio/msg_123.mp3",
+  "transcript_hint": "I will find you and you deserve pain.",
+  "metadata": {
+    "content_id": "voice_123",
+    "channel": "voice_message",
+    "language": "en"
+  }
+}
+```
+
+Supported uploads include MP3, MP4/M4A, WAV, and WEBM up to 25 MB.
 
 ## Video Moderation
 

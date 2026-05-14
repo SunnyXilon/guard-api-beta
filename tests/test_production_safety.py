@@ -57,8 +57,49 @@ def test_production_settings_reject_missing_shared_rate_limit() -> None:
         settings.validate_production_safety()
 
 
+def test_production_settings_reject_required_audio_transcription_without_openai_key() -> None:
+    settings = Settings(
+        environment="production",
+        session_secret="prod-secret-that-is-long-and-random",
+        database_url="postgresql+psycopg://guard:secret@db:5432/guard",
+        cors_allowed_origins=["https://app.guard.example"],
+        bootstrap_api_keys=False,
+        bootstrap_default_keys="",
+        bootstrap_admin_keys="",
+        self_service_onboarding_enabled=False,
+        rate_limit_redis_url="redis://redis:6379/0",
+        connector_webhook_signing_secret="strong-webhook-signing-secret",
+        audio_transcription_required=True,
+    )
+
+    with pytest.raises(RuntimeError, match="RTCM_OPENAI_API_KEY"):
+        settings.validate_production_safety()
+
+
 def test_request_id_header_is_returned(client) -> None:
     response = client.get("/health", headers={"X-Request-ID": "req_test_123"})
 
     assert response.status_code == 200
     assert response.headers["X-Request-ID"] == "req_test_123"
+
+
+def test_api_docs_are_hidden_by_default_in_production() -> None:
+    from app.main import create_app
+
+    settings = Settings(
+        environment="production",
+        session_secret="prod-secret-that-is-long-and-random",
+        database_url="postgresql+psycopg://guard:secret@db:5432/guard",
+        cors_allowed_origins=["https://app.guard.example"],
+        bootstrap_api_keys=False,
+        bootstrap_default_keys="",
+        bootstrap_admin_keys="",
+        self_service_onboarding_enabled=False,
+        rate_limit_enabled=False,
+        connector_webhook_signing_secret="strong-webhook-signing-secret",
+    )
+    app = create_app(settings)
+
+    assert app.docs_url is None
+    assert app.redoc_url is None
+    assert app.openapi_url is None

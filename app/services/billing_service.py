@@ -50,6 +50,25 @@ class BillingService:
         )
         return str(session.url)
 
+    def create_customer_portal_url(self, tenant: Tenant) -> str:
+        if stripe is None or not self.settings.stripe_secret_key:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="Stripe billing is not configured. Set RTCM_STRIPE_SECRET_KEY to manage payment methods.",
+            )
+        if not tenant.stripe_customer_id:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="No Stripe customer exists for this workspace yet. Choose a plan first.",
+            )
+
+        stripe.api_key = self.settings.stripe_secret_key
+        session = stripe.billing_portal.Session.create(
+            customer=tenant.stripe_customer_id,
+            return_url=self.settings.billing_portal_return_url,
+        )
+        return str(session.url)
+
     def construct_webhook_event(self, payload: bytes, signature: str | None):
         if stripe is None or not self.settings.stripe_webhook_secret:
             if self.settings.environment == "production":

@@ -5,6 +5,7 @@ Use this before exposing Guard API to real customer traffic.
 ## Required Environment
 
 - Set `RTCM_ENVIRONMENT=production`.
+- Set `RTCM_EXPOSE_API_DOCS=false` unless you intentionally want public Swagger/OpenAPI docs.
 - Set `RTCM_DATABASE_URL` to a managed PostgreSQL DSN.
 - Set a strong random `RTCM_SESSION_SECRET`.
 - Set `RTCM_BOOTSTRAP_API_KEYS=false`.
@@ -12,6 +13,7 @@ Use this before exposing Guard API to real customer traffic.
 - Set `RTCM_CLERK_JWKS_URL` or `RTCM_CLERK_JWT_KEY`.
 - Set `RTCM_CLERK_ISSUER` and `RTCM_CLERK_AUTHORIZED_PARTIES`.
 - Set `RTCM_RATE_LIMIT_REDIS_URL` for shared rate limiting across API instances.
+- Set `RTCM_OPENAI_API_KEY` and `RTCM_AUDIO_TRANSCRIPTION_REQUIRED=true` if you sell uploaded audio moderation.
 - Set `RTCM_IMAGE_SCANNING_REQUIRED=true` when image upload scanning must be live.
 - Set `RTCM_BILLING_REQUIRED=true` before enabling paid plans.
 - Set `RTCM_CONNECTOR_WEBHOOK_SIGNING_SECRET` so connector webhook bodies can be HMAC verified.
@@ -21,6 +23,7 @@ Use this before exposing Guard API to real customer traffic.
 - Set `RTCM_STRIPE_SECRET_KEY`.
 - Set `RTCM_STRIPE_WEBHOOK_SECRET`.
 - Set `RTCM_BILLING_SUCCESS_URL` and `RTCM_BILLING_CANCEL_URL`.
+- Set `RTCM_BILLING_PORTAL_RETURN_URL`.
 - Set `RTCM_BILLING_TRIAL_DAYS=30` for the first-month free trial.
 - Set `RTCM_BILLING_PLAN_PRICE_IDS` with `starter`, `growth`, and `scale` Stripe price IDs.
 - Configure the Stripe webhook endpoint: `/billing/webhook`.
@@ -46,6 +49,8 @@ Use this before exposing Guard API to real customer traffic.
   - Workspace creation.
   - One-time moderation key copy.
   - Text moderation request with the moderation key.
+  - Audio upload moderation with a real `.mp3`, `.wav`, `.m4a`, or `.webm` file.
   - Dashboard usage update.
   - Review case assignment and resolution.
   - Billing checkout start.
+  - Billing portal opens after a Stripe customer exists.

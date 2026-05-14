@@ -12,6 +12,7 @@ import {
   Copy,
   CreditCard,
   Database,
+  ExternalLink,
   FileAudio,
   Film,
   LayoutDashboard,
@@ -33,6 +34,7 @@ import {
   Workflow,
   XCircle,
   Trash2,
+  Video,
 } from "lucide-react";
 import type { Dispatch, ReactNode, SetStateAction } from "react";
 import { useEffect, useMemo, useState } from "react";
@@ -299,6 +301,232 @@ const sampleTexts: TextSample[] = [
   },
 ];
 
+const audioSamples: Array<{ label: string; transcript: string }> = [
+  {
+    label: "Harassment",
+    transcript: "You are worthless and I will find you after school.",
+  },
+  {
+    label: "Scam",
+    transcript: "Send your OTP and bank details now to unlock your account.",
+  },
+  {
+    label: "Sexual",
+    transcript: "Send nude pics right now.",
+  },
+  {
+    label: "Self-harm",
+    transcript: "I want to kill myself tonight.",
+  },
+  {
+    label: "Illegal",
+    transcript: "Buy cocaine and pills for cash only.",
+  },
+];
+
+const nodeExpressTemplate = `import express from "express";
+
+const app = express();
+app.use(express.json());
+
+const GUARD_API_URL = process.env.GUARD_API_URL;
+const GUARD_API_KEY = process.env.GUARD_API_KEY;
+
+app.post("/messages", async (req, res) => {
+  const response = await fetch(\`\${GUARD_API_URL}/moderate/text\`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "X-API-Key": GUARD_API_KEY
+    },
+    body: JSON.stringify({
+      text: req.body.text,
+      metadata: {
+        content_id: req.body.messageId,
+        user_id: req.body.userId,
+        channel: "chat"
+      }
+    })
+  });
+
+  const moderation = await response.json();
+
+  if (moderation.decision.action === "block") {
+    return res.status(422).json({ status: "blocked", request_id: moderation.request_id });
+  }
+
+  if (moderation.decision.action === "review") {
+    return res.status(202).json({ status: "pending_review", request_id: moderation.request_id });
+  }
+
+  return res.status(201).json({ status: "published", request_id: moderation.request_id });
+});
+
+app.listen(9000);`;
+
+const nodeAudioTemplate = `const form = new FormData();
+form.set("audio", audioBlob, "voice-note.mp3");
+form.set("transcript_hint", "optional fallback transcript");
+form.set("channel", "voice_message");
+
+const response = await fetch(\`\${process.env.GUARD_API_URL}/moderate/audio\`, {
+  method: "POST",
+  headers: {
+    "X-API-Key": process.env.GUARD_API_KEY
+  },
+  body: form
+});
+
+const moderation = await response.json();
+
+if (moderation.decision.action === "allow") publishAudio();
+if (moderation.decision.action === "review") holdForModerator();
+if (moderation.decision.action === "block") rejectAudio();`;
+
+const nodeImageTemplate = `const form = new FormData();
+form.set("image", imageBlob, "upload.jpg");
+form.set("image_caption", "caption or alt text from your app");
+form.set("ocr_text", "text already extracted by your app, optional");
+form.set("channel", "image_upload");
+
+const response = await fetch(\`\${process.env.GUARD_API_URL}/moderate/image\`, {
+  method: "POST",
+  headers: {
+    "X-API-Key": process.env.GUARD_API_KEY
+  },
+  body: form
+});
+
+const moderation = await response.json();
+
+if (moderation.decision.action === "allow") publishImage();
+if (moderation.decision.action === "review") holdForModerator();
+if (moderation.decision.action === "block") rejectImage();`;
+
+const nodeVideoTemplate = `const form = new FormData();
+form.set("video", videoBlob, "upload.mp4");
+form.set("transcript_hint", "optional speech transcript or caption");
+form.set("frame_description", "short description from your video pipeline");
+form.set("ocr_text", "visible text detected in sampled frames");
+form.set("detected_objects", "phone,cash");
+form.set("channel", "video_upload");
+
+const response = await fetch(\`\${process.env.GUARD_API_URL}/moderate/video\`, {
+  method: "POST",
+  headers: {
+    "X-API-Key": process.env.GUARD_API_KEY
+  },
+  body: form
+});
+
+const moderation = await response.json();
+
+if (moderation.decision.action === "allow") publishVideo();
+if (moderation.decision.action === "review") holdForModerator();
+if (moderation.decision.action === "block") rejectVideo();`;
+
+const pythonFastApiTemplate = `import os
+import requests
+from fastapi import FastAPI, HTTPException
+
+app = FastAPI()
+
+GUARD_API_URL = os.environ["GUARD_API_URL"]
+GUARD_API_KEY = os.environ["GUARD_API_KEY"]
+
+@app.post("/messages")
+def create_message(payload: dict):
+    response = requests.post(
+        f"{GUARD_API_URL}/moderate/text",
+        headers={"X-API-Key": GUARD_API_KEY},
+        json={
+            "text": payload["text"],
+            "metadata": {
+                "content_id": payload.get("message_id"),
+                "user_id": payload.get("user_id"),
+                "channel": "chat",
+            },
+        },
+        timeout=10,
+    )
+    response.raise_for_status()
+    moderation = response.json()
+
+    if moderation["decision"]["action"] == "block":
+        raise HTTPException(status_code=422, detail="Blocked by moderation.")
+
+    if moderation["decision"]["action"] == "review":
+        return {"status": "pending_review", "request_id": moderation["request_id"]}
+
+    return {"status": "published", "request_id": moderation["request_id"]}`;
+
+const pythonAudioTemplate = `with open("voice-note.mp3", "rb") as audio_file:
+    response = requests.post(
+        f"{GUARD_API_URL}/moderate/audio",
+        headers={"X-API-Key": GUARD_API_KEY},
+        files={"audio": ("voice-note.mp3", audio_file, "audio/mpeg")},
+        data={
+            "transcript_hint": "optional fallback transcript",
+            "channel": "voice_message",
+        },
+        timeout=30,
+    )
+
+moderation = response.json()
+
+if moderation["decision"]["action"] == "allow":
+    publish_audio()
+elif moderation["decision"]["action"] == "review":
+    hold_for_moderator()
+else:
+    reject_audio()`;
+
+const pythonImageTemplate = `with open("upload.jpg", "rb") as image_file:
+    response = requests.post(
+        f"{GUARD_API_URL}/moderate/image",
+        headers={"X-API-Key": GUARD_API_KEY},
+        files={"image": ("upload.jpg", image_file, "image/jpeg")},
+        data={
+            "image_caption": "caption or alt text from your app",
+            "ocr_text": "text already extracted by your app, optional",
+            "channel": "image_upload",
+        },
+        timeout=30,
+    )
+
+moderation = response.json()
+
+if moderation["decision"]["action"] == "allow":
+    publish_image()
+elif moderation["decision"]["action"] == "review":
+    hold_for_moderator()
+else:
+    reject_image()`;
+
+const pythonVideoTemplate = `with open("upload.mp4", "rb") as video_file:
+    response = requests.post(
+        f"{GUARD_API_URL}/moderate/video",
+        headers={"X-API-Key": GUARD_API_KEY},
+        files={"video": ("upload.mp4", video_file, "video/mp4")},
+        data={
+            "transcript_hint": "optional speech transcript or caption",
+            "frame_description": "short description from your video pipeline",
+            "ocr_text": "visible text detected in sampled frames",
+            "detected_objects": "phone,cash",
+            "channel": "video_upload",
+        },
+        timeout=60,
+    )
+
+moderation = response.json()
+
+if moderation["decision"]["action"] == "allow":
+    publish_video()
+elif moderation["decision"]["action"] == "review":
+    hold_for_moderator()
+else:
+    reject_video()`;
+
 const productStats = [
   { label: "Modalities", value: "4", detail: "Text, image, audio, video" },
   { label: "Decision path", value: "<350ms", detail: "Fast local scoring first" },
@@ -538,6 +766,57 @@ const billingPlans = [
   },
 ];
 
+const legalPages = {
+  "/terms": {
+    title: "Terms of Service",
+    updated: "May 14, 2026",
+    sections: [
+      ["Product use", "Guard API is a moderation API and dashboard for business use. Customers are responsible for how they configure policies, handle user appeals, and apply decisions in their own products."],
+      ["Accounts and keys", "Customers must keep API keys and dashboard sessions secure, use server-side integrations for moderation keys, and promptly rotate any key that may be exposed."],
+      ["Billing", "Paid plans renew monthly unless cancelled. Usage limits, trial periods, overage handling, and available features are shown on the pricing and billing screens."],
+      ["Service limits", "The service may reject requests that exceed quota, rate limits, file-size limits, unsupported media types, or acceptable-use restrictions."],
+      ["No legal advice", "Moderation decisions are risk signals and workflow recommendations. Customers remain responsible for legal compliance and final enforcement choices."],
+    ],
+  },
+  "/privacy": {
+    title: "Privacy Policy",
+    updated: "May 14, 2026",
+    sections: [
+      ["Data processed", "The service processes submitted text, image metadata, uploaded media where enabled, account information, API keys, policy settings, audit events, and billing identifiers."],
+      ["Purpose", "Data is used to score content, explain decisions, maintain review queues, enforce quota, secure the service, provide support, and improve reliability."],
+      ["Subprocessors", "Production deployments may use hosting, database, authentication, billing, monitoring, and optional image-scanning providers configured by the operator."],
+      ["Customer control", "Customers can rotate keys, delete workspaces, resolve review cases, and request deletion or export through support."],
+    ],
+  },
+  "/refund": {
+    title: "Refund Policy",
+    updated: "May 14, 2026",
+    sections: [
+      ["Trials", "Starter plans can include a trial period when configured in Stripe. Trial users can cancel before the trial ends."],
+      ["Monthly subscriptions", "Cancellations stop future renewals. Partial-month refunds are reviewed case by case for duplicate charges, service outages, or accidental upgrades."],
+      ["How to request", "Send the workspace name, billing email, charge date, and reason to support. Approved refunds are returned through the original payment method."],
+    ],
+  },
+  "/acceptable-use": {
+    title: "Acceptable Use Policy",
+    updated: "May 14, 2026",
+    sections: [
+      ["Allowed use", "Use Guard API to detect, review, and reduce spam, fraud, harassment, sexual content, violence, and other policy risks in legitimate products."],
+      ["Prohibited use", "Do not use the service to build surveillance systems, evade platform rules, classify protected traits for discriminatory decisions, or process illegal content except for defensive moderation workflows."],
+      ["Abuse response", "Workspaces may be suspended for credential sharing, attacks, excessive automated abuse, illegal use, or attempts to extract models or bypass rate limits."],
+    ],
+  },
+  "/data-retention": {
+    title: "Moderation Data Retention",
+    updated: "May 14, 2026",
+    sections: [
+      ["Default retention", "Moderation requests, decisions, review cases, and audit events are retained while the workspace is active so customers can investigate decisions and usage."],
+      ["Minimization", "Production logging should avoid raw customer content outside the primary database. External monitoring should receive request IDs, status, latency, and error metadata only."],
+      ["Deletion", "Workspace deletion deactivates the workspace and stops its API keys. Production operators should define a backend deletion/export process before public launch."],
+    ],
+  },
+} satisfies Record<string, { title: string; updated: string; sections: Array<[string, string]> }>;
+
 export function App({ clerkEnabled, clerkLoaded, clerkSignedIn, getClerkToken }: AppProps) {
   const [path, setPath] = useState(() => window.location.pathname);
   const [theme, setTheme] = useState<"light" | "dark">(() => {
@@ -558,6 +837,7 @@ export function App({ clerkEnabled, clerkLoaded, clerkSignedIn, getClerkToken }:
   const [videoLoading, setVideoLoading] = useState(false);
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState("");
+  const [audioFile, setAudioFile] = useState<File | null>(null);
   const [audioTranscript, setAudioTranscript] = useState("I will find you and you deserve pain.");
   const [videoTranscript, setVideoTranscript] = useState("");
   const [videoFrameDescription, setVideoFrameDescription] = useState("");
@@ -576,7 +856,7 @@ export function App({ clerkEnabled, clerkLoaded, clerkSignedIn, getClerkToken }:
   const [apiKeys, setApiKeys] = useState<ApiKeyInfo[]>([]);
   const [apiKeyUsage, setApiKeyUsage] = useState<ApiKeyUsage[]>([]);
   const [billingStatus, setBillingStatus] = useState<BillingStatus | null>(null);
-  const [newKeyName, setNewKeyName] = useState("production-webhook");
+  const [newKeyName, setNewKeyName] = useState("server-moderation-key");
   const [createdApiKey, setCreatedApiKey] = useState("");
   const [workspaceName, setWorkspaceName] = useState("Marketplace");
   const [workspaceRename, setWorkspaceRename] = useState("");
@@ -748,28 +1028,43 @@ export function App({ clerkEnabled, clerkLoaded, clerkSignedIn, getClerkToken }:
       setError("Audio demo API key is not configured.");
       return;
     }
-    if (!audioTranscript.trim()) {
-      setError("Add an audio transcript first.");
+    if (!audioFile && !audioTranscript.trim()) {
+      setError("Upload audio or add a transcript first.");
       return;
     }
 
     setAudioLoading(true);
     setError("");
     try {
+      const body = audioFile
+        ? (() => {
+            const formData = new FormData();
+            formData.append("audio", audioFile);
+            if (audioTranscript.trim()) {
+              formData.append("transcript_hint", audioTranscript);
+            }
+            formData.append("channel", "landing_audio_demo");
+            formData.append("region", "global");
+            formData.append("language", textLanguage);
+            return formData;
+          })()
+        : JSON.stringify({
+            transcript_hint: audioTranscript,
+            metadata: {
+              channel: "landing_audio_demo",
+              region: "global",
+              language: textLanguage,
+            },
+          });
       const response = await fetch(`${API_BASE}/moderate/audio`, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-API-Key": TEXT_API_KEY,
-        },
-        body: JSON.stringify({
-          transcript_hint: audioTranscript,
-          metadata: {
-            channel: "landing_audio_demo",
-            region: "global",
-            language: textLanguage,
-          },
-        }),
+        headers: audioFile
+          ? { "X-API-Key": TEXT_API_KEY }
+          : {
+              "Content-Type": "application/json",
+              "X-API-Key": TEXT_API_KEY,
+            },
+        body,
       });
 
       if (!response.ok) {
@@ -778,9 +1073,9 @@ export function App({ clerkEnabled, clerkLoaded, clerkSignedIn, getClerkToken }:
 
       const payload = (await response.json()) as ModerationResult;
       setResult(payload);
-      recordPreviewModeration(payload, "audio", audioTranscript);
+      recordPreviewModeration(payload, "audio", audioFile?.name || audioTranscript);
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "Unable to scan audio transcript.");
+      setError(caught instanceof Error ? caught.message : "Unable to scan audio.");
     } finally {
       setAudioLoading(false);
     }
@@ -1771,6 +2066,35 @@ export function App({ clerkEnabled, clerkLoaded, clerkSignedIn, getClerkToken }:
     }
   }
 
+  async function openBillingPortal() {
+    setDashboardLoading(true);
+    setDashboardError("");
+    setDashboardSaved("");
+    try {
+      const response = await fetch(`${API_BASE}/billing/portal`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${dashboardToken}`,
+        },
+      });
+      if (!response.ok) {
+        let detail = "";
+        try {
+          detail = String(((await response.json()) as { detail?: string }).detail ?? "");
+        } catch {
+          detail = "";
+        }
+        throw new Error(detail || `Billing portal failed: ${response.status}`);
+      }
+      const payload = (await response.json()) as { portal_url: string };
+      window.location.href = payload.portal_url;
+    } catch (caught) {
+      setDashboardError(caught instanceof Error ? caught.message : "Unable to open billing portal.");
+    } finally {
+      setDashboardLoading(false);
+    }
+  }
+
   async function updateBillingScope(nextScope: "account" | "workspace") {
     if (!dashboard || billingStatus?.billing_scope === nextScope) {
       return;
@@ -1901,6 +2225,7 @@ export function App({ clerkEnabled, clerkLoaded, clerkSignedIn, getClerkToken }:
       onCreateSocialEvent={createSocialEvent}
       onApplySocialAction={applySocialAction}
       onStartBillingCheckout={startBillingCheckout}
+      onOpenBillingPortal={openBillingPortal}
       onUpdateBillingScope={updateBillingScope}
       onWorkspaceShieldComplete={() => setWorkspaceShieldTenant("")}
       dashboardToken={dashboardToken}
@@ -1919,6 +2244,11 @@ export function App({ clerkEnabled, clerkLoaded, clerkSignedIn, getClerkToken }:
         {dashboardNode}
       </DashboardRoute>
     );
+  }
+
+  const legalPage = legalPages[path as keyof typeof legalPages];
+  if (legalPage) {
+    return <LegalPage page={legalPage} theme={theme} setTheme={setTheme} navigate={navigate} />;
   }
 
   return (
@@ -1968,12 +2298,6 @@ export function App({ clerkEnabled, clerkLoaded, clerkSignedIn, getClerkToken }:
                 onClick={() => setTheme((current) => (current === "dark" ? "light" : "dark"))}
               >
                 {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
-              </Button>
-              <Button asChild variant="outline" size="sm" className="hidden sm:inline-flex">
-                <a href={`${API_BASE}/docs`} target="_blank" rel="noreferrer">
-                  API docs
-                  <ArrowRight className="h-4 w-4" />
-                </a>
               </Button>
               <AuthActions clerkEnabled={clerkEnabled} onDashboard={() => navigate("/dashboard")} />
             </div>
@@ -2041,6 +2365,8 @@ export function App({ clerkEnabled, clerkLoaded, clerkSignedIn, getClerkToken }:
                 imageFile={imageFile}
                 imagePreview={imagePreview}
                 setImageFile={setImageFile}
+                audioFile={audioFile}
+                setAudioFile={setAudioFile}
                 audioTranscript={audioTranscript}
                 setAudioTranscript={setAudioTranscript}
                 videoTranscript={videoTranscript}
@@ -2141,6 +2467,8 @@ export function App({ clerkEnabled, clerkLoaded, clerkSignedIn, getClerkToken }:
       </section>
 
       <PublicFaqSection />
+
+      <PublicFooter navigate={navigate} />
     </main>
   );
 }
@@ -2654,7 +2982,7 @@ function PublicDashboardPreview({
           clerkEnabled
           workspaceLookupLoading={false}
           previewMode
-          newKeyName="production-webhook"
+          newKeyName="server-moderation-key"
           createdApiKey=""
           workspaceName="Marketplace"
           workspaceRename=""
@@ -2684,6 +3012,7 @@ function PublicDashboardPreview({
           onCreateSocialEvent={() => undefined}
           onApplySocialAction={() => undefined}
           onStartBillingCheckout={() => undefined}
+          onOpenBillingPortal={() => undefined}
           onUpdateBillingScope={() => undefined}
           onWorkspaceShieldComplete={() => undefined}
           dashboardToken=""
@@ -2691,6 +3020,96 @@ function PublicDashboardPreview({
         />
       </div>
     </section>
+  );
+}
+
+function PublicFooter({ navigate }: { navigate: (path: string) => void }) {
+  const links = [
+    ["/terms", "Terms"],
+    ["/privacy", "Privacy"],
+    ["/refund", "Refunds"],
+    ["/acceptable-use", "Acceptable use"],
+    ["/data-retention", "Data retention"],
+  ];
+
+  return (
+    <footer className="border-t border-border bg-slate-950 py-8 text-slate-300">
+      <div className="container flex flex-col gap-5 md:flex-row md:items-center md:justify-between">
+        <div>
+          <p className="font-semibold text-white">Guard API</p>
+          <p className="mt-1 text-sm text-slate-400">Real-time trust and safety API for UGC products.</p>
+        </div>
+        <div className="flex flex-wrap gap-3 text-sm">
+          {links.map(([href, label]) => (
+            <button key={href} type="button" className="transition hover:text-white" onClick={() => navigate(href)}>
+              {label}
+            </button>
+          ))}
+        </div>
+      </div>
+    </footer>
+  );
+}
+
+function LegalPage({
+  page,
+  theme,
+  setTheme,
+  navigate,
+}: {
+  page: (typeof legalPages)[keyof typeof legalPages];
+  theme: "light" | "dark";
+  setTheme: Dispatch<SetStateAction<"light" | "dark">>;
+  navigate: (path: string) => void;
+}) {
+  return (
+    <main className="min-h-screen bg-background text-foreground">
+      <header className="border-b border-border bg-background/90 backdrop-blur">
+        <div className="container flex h-16 items-center justify-between gap-4">
+          <button className="flex items-center gap-3" type="button" onClick={() => navigate("/")}>
+            <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary text-primary-foreground">
+              <ShieldCheck className="h-5 w-5" />
+            </span>
+            <span className="text-lg font-semibold">Guard API</span>
+          </button>
+          <div className="flex items-center gap-2">
+            <Button variant="outline" onClick={() => navigate("/")}>
+              Public site
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="icon"
+              aria-label={`Switch to ${theme === "dark" ? "light" : "dark"} mode`}
+              title={`Switch to ${theme === "dark" ? "light" : "dark"} mode`}
+              onClick={() => setTheme((current) => (current === "dark" ? "light" : "dark"))}
+            >
+              {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+            </Button>
+          </div>
+        </div>
+      </header>
+      <section className="py-12">
+        <div className="container max-w-3xl">
+          <Badge variant="secondary" className="mb-4">Updated {page.updated}</Badge>
+          <h1 className="text-4xl font-semibold tracking-normal text-slate-950 dark:text-white">{page.title}</h1>
+          <p className="mt-4 text-slate-600 dark:text-slate-300">
+            This launch-ready draft should be reviewed by counsel before public paid launch.
+          </p>
+          <div className="mt-8 grid gap-4">
+            {page.sections.map(([title, body]) => (
+              <Card key={title} className="dark:border-white/10">
+                <CardHeader>
+                  <CardTitle className="text-lg">{title}</CardTitle>
+                  <CardDescription className="text-sm leading-6">{body}</CardDescription>
+                </CardHeader>
+              </Card>
+            ))}
+          </div>
+        </div>
+      </section>
+      <PublicFooter navigate={navigate} />
+    </main>
   );
 }
 
@@ -2835,6 +3254,7 @@ type ClientDashboardProps = {
   onCreateSocialEvent: (event: SocialEventCreateInput) => void;
   onApplySocialAction: (eventId: string, actionType: SocialActionType) => void;
   onStartBillingCheckout: (planName: string) => void;
+  onOpenBillingPortal: () => void;
   onUpdateBillingScope: (billingScope: "account" | "workspace") => void;
   onWorkspaceShieldComplete: () => void;
   dashboardToken: string;
@@ -2902,6 +3322,7 @@ function ClientDashboard({
   onCreateSocialEvent,
   onApplySocialAction,
   onStartBillingCheckout,
+  onOpenBillingPortal,
   onUpdateBillingScope,
   onWorkspaceShieldComplete,
   dashboardToken,
@@ -3366,6 +3787,7 @@ function ClientDashboard({
                 usage={dashboard.usage}
                 loading={loading}
                 onStartCheckout={onStartBillingCheckout}
+                onOpenPortal={onOpenBillingPortal}
                 onUpdateBillingScope={onUpdateBillingScope}
               />
             ) : null}
@@ -3383,12 +3805,26 @@ function ClientDashboard({
         ) : clerkEnabled ? (
           <Card className="dark:border-white/10">
             <CardHeader>
-              <CardTitle>Create your workspace</CardTitle>
+              <CardTitle>Create your first workspace</CardTitle>
               <CardDescription>
-                This creates your tenant, opens the dashboard, and generates your first moderation API key.
+                Name the app, community, marketplace, or creator account you want to protect.
               </CardDescription>
             </CardHeader>
             <CardContent>
+              <div className="mb-5 grid gap-3 md:grid-cols-3">
+                {[
+                  "Create the workspace",
+                  "Copy the one-time moderation key",
+                  "Run the first API call",
+                ].map((step, index) => (
+                  <div key={step} className="rounded-lg border border-border bg-slate-50 p-3 dark:bg-slate-950/70">
+                    <span className="mb-2 flex h-7 w-7 items-center justify-center rounded-md bg-teal-600 text-xs font-semibold text-white">
+                      {index + 1}
+                    </span>
+                    <p className="text-sm font-medium text-slate-900 dark:text-white">{step}</p>
+                  </div>
+                ))}
+              </div>
               <div className="grid gap-3 sm:grid-cols-[1fr_auto]">
                 <input
                   value={workspaceName}
@@ -3402,9 +3838,9 @@ function ClientDashboard({
                 </Button>
               </div>
               <div className="mt-5 rounded-lg border border-border bg-slate-50 p-4 dark:bg-slate-950/70">
-                <p className="text-sm font-medium text-slate-900 dark:text-white">Already have a tenant key?</p>
+                <p className="text-sm font-medium text-slate-900 dark:text-white">Already created a workspace?</p>
                 <p className="mt-1 text-sm text-muted-foreground">
-                  Sign in with the Clerk account that owns that workspace. Moderation keys should be used in API calls.
+                  Sign in with the same account and it will open automatically. API keys are shown separately after setup.
                 </p>
               </div>
             </CardContent>
@@ -3424,6 +3860,7 @@ function ClientDashboard({
         {dashboard && onboardingModerationKey ? (
           <>
             <OneTimeKeyBox title="Your first moderation API key" apiKey={onboardingModerationKey} />
+            <FirstApiCallPanel apiKey={onboardingModerationKey} workspaceId={dashboard.tenant.tenant_id} />
           </>
         ) : null}
       </div>
@@ -3832,6 +4269,8 @@ RTCM_WEBHOOK_SECRET=generate-a-long-random-secret`;
         <CodeSnippet title="Server environment" subtitle="Keep secrets outside the frontend" code={serverEnv} />
       </div>
 
+      <CustomerCodeExamples />
+
       <Card className="dark:border-white/10">
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-base">
@@ -3861,6 +4300,110 @@ function ReadinessStepTile({ step }: { step: IntegrationReadinessStep }) {
       </div>
       <p className="text-xs text-muted-foreground">{step.detail}</p>
     </div>
+  );
+}
+
+function CustomerCodeExamples() {
+  const [selectedExample, setSelectedExample] = useState<"node" | "python">("node");
+  const [selectedEndpoint, setSelectedEndpoint] = useState<"text" | "image" | "audio" | "video">("text");
+  const endpointOptions: Array<{ id: "text" | "image" | "audio" | "video"; label: string; subtitle: string }> = [
+    { id: "text", label: "Text", subtitle: "Comments, chat, captions" },
+    { id: "image", label: "Image", subtitle: "Uploads, screenshots, OCR" },
+    { id: "audio", label: "Audio", subtitle: "Voice notes, calls, clips" },
+    { id: "video", label: "Video", subtitle: "Uploads, reels, livestream clips" },
+  ];
+  const codeByEndpoint = {
+    text: {
+      title: selectedExample === "node" ? "Node Express text route" : "Python FastAPI text route",
+      subtitle: "POST /moderate/text with decision handling",
+      code: selectedExample === "node" ? nodeExpressTemplate : pythonFastApiTemplate,
+    },
+    image: {
+      title: selectedExample === "node" ? "Node image upload" : "Python image upload",
+      subtitle: "POST /moderate/image with file, caption, and OCR fields",
+      code: selectedExample === "node" ? nodeImageTemplate : pythonImageTemplate,
+    },
+    audio: {
+      title: selectedExample === "node" ? "Node audio upload" : "Python audio upload",
+      subtitle: "POST /moderate/audio with file and optional transcript hint",
+      code: selectedExample === "node" ? nodeAudioTemplate : pythonAudioTemplate,
+    },
+    video: {
+      title: selectedExample === "node" ? "Node video upload" : "Python video upload",
+      subtitle: "POST /moderate/video with file, transcript, frame, OCR, and object hints",
+      code: selectedExample === "node" ? nodeVideoTemplate : pythonVideoTemplate,
+    },
+  };
+  const activeCode = codeByEndpoint[selectedEndpoint];
+
+  return (
+    <Card className="dark:border-white/10">
+      <CardHeader>
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div>
+            <CardTitle className="flex items-center gap-2">
+              <Code2 className="h-5 w-5 text-teal-700" />
+              Customer integration code
+            </CardTitle>
+            <CardDescription>
+              Use these as backend templates. Customers must add their own Guard key, request fields, and publish/review/block logic.
+            </CardDescription>
+          </div>
+          <div className="flex rounded-lg border border-border bg-slate-50 p-1 dark:bg-slate-950/70">
+            <button
+              type="button"
+              onClick={() => setSelectedExample("node")}
+              className={cn(
+                "rounded-md px-3 py-1.5 text-sm font-medium transition",
+                selectedExample === "node" ? "bg-background text-slate-950 shadow-sm dark:text-white" : "text-muted-foreground",
+              )}
+            >
+              Node
+            </button>
+            <button
+              type="button"
+              onClick={() => setSelectedExample("python")}
+              className={cn(
+                "rounded-md px-3 py-1.5 text-sm font-medium transition",
+                selectedExample === "python" ? "bg-background text-slate-950 shadow-sm dark:text-white" : "text-muted-foreground",
+              )}
+            >
+              Python
+            </button>
+          </div>
+        </div>
+      </CardHeader>
+      <CardContent>
+        <div className="mb-4 grid gap-3 md:grid-cols-3">
+          <ApiDocTile label="Set env vars" value="Add GUARD_API_URL and GUARD_API_KEY on the backend only." />
+          <ApiDocTile label="Map app data" value="Replace sample fields with your real text, file, user ID, and content ID." />
+          <ApiDocTile label="Wire decisions" value="Replace publish, hold, and reject placeholders with your app logic." />
+        </div>
+        <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950 dark:border-amber-400/25 dark:bg-amber-950/35 dark:text-amber-100">
+          The code is not a zero-change drop-in. It shows where to call Guard API and how to read the decision. Functions such as publishImage,
+          holdForModerator, and rejectVideo must be connected to the customer's own database, upload storage, queue, or publishing system.
+        </div>
+        <div className="mb-4 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+          {endpointOptions.map((option) => (
+            <button
+              key={option.id}
+              type="button"
+              onClick={() => setSelectedEndpoint(option.id)}
+              className={cn(
+                "rounded-lg border p-3 text-left transition",
+                selectedEndpoint === option.id
+                  ? "border-teal-500 bg-teal-50 text-slate-950 shadow-sm dark:bg-teal-950/30 dark:text-white"
+                  : "border-border bg-background hover:bg-accent",
+              )}
+            >
+              <span className="block text-sm font-medium">{option.label}</span>
+              <span className="mt-1 block text-xs text-muted-foreground">{option.subtitle}</span>
+            </button>
+          ))}
+        </div>
+        <CodeSnippet title={activeCode.title} subtitle={activeCode.subtitle} code={activeCode.code} />
+      </CardContent>
+    </Card>
   );
 }
 
@@ -3924,6 +4467,7 @@ function ModerationPlaygroundPanel({
   const [imageCaption, setImageCaption] = useState("Marketplace upload showing payment proof and a WhatsApp number.");
   const [imageObjects, setImageObjects] = useState("phone, payment screenshot, cash");
   const [imageOcr, setImageOcr] = useState("guaranteed profit send otp");
+  const [audioFile, setAudioFile] = useState<File | null>(null);
   const [audioTranscript, setAudioTranscript] = useState("Send your OTP right now or your account will be blocked.");
   const [videoFile, setVideoFile] = useState<File | null>(null);
   const [videoTranscript, setVideoTranscript] = useState("Message me on Telegram for guaranteed profit.");
@@ -3998,6 +4542,18 @@ function ModerationPlaygroundPanel({
       });
     }
     if (mode === "audio") {
+      if (audioFile) {
+        const formData = new FormData();
+        formData.append("audio", audioFile);
+        formData.append("transcript_hint", audioTranscript);
+        formData.append("channel", "playground_audio");
+        formData.append("region", "global");
+        return fetch(`${API_BASE}/playground/moderate/audio`, {
+          method: "POST",
+          headers: authHeaders,
+          body: formData,
+        });
+      }
       return fetch(`${API_BASE}/playground/moderate/audio`, {
         method: "POST",
         headers: { ...authHeaders, "Content-Type": "application/json" },
@@ -4139,12 +4695,40 @@ function ModerationPlaygroundPanel({
               ) : null}
 
               {mode === "audio" ? (
-                <Textarea
-                  value={audioTranscript}
-                  onChange={(event) => setAudioTranscript(event.target.value)}
-                  className="min-h-40"
-                  placeholder="Paste the transcript or spoken words to moderate"
-                />
+                <div className="space-y-3">
+                  <label className="flex cursor-pointer flex-col items-center justify-center rounded-lg border border-dashed border-border bg-slate-50 p-6 text-center dark:bg-slate-950/70">
+                    <UploadCloud className="mb-2 h-8 w-8 text-teal-700" />
+                    <span className="text-sm font-medium text-slate-900 dark:text-white">
+                      {audioFile ? audioFile.name : "Upload audio or use the transcript field below"}
+                    </span>
+                    <span className="mt-1 text-xs text-muted-foreground">MP3, WAV, M4A, MP4, or WEBM up to 25 MB</span>
+                    <input
+                      type="file"
+                      accept="audio/mpeg,audio/mp4,audio/wav,audio/webm,audio/x-m4a,audio/mp4,video/mp4"
+                      className="hidden"
+                      onChange={(event) => setAudioFile(event.target.files?.[0] ?? null)}
+                    />
+                  </label>
+                  <Textarea
+                    value={audioTranscript}
+                    onChange={(event) => setAudioTranscript(event.target.value)}
+                    className="min-h-32"
+                    placeholder="Optional transcript hint or fallback transcript"
+                  />
+                  <div className="flex flex-wrap gap-2">
+                    {audioSamples.map((sample) => (
+                      <Button
+                        key={sample.label}
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setAudioTranscript(sample.transcript)}
+                      >
+                        {sample.label}
+                      </Button>
+                    ))}
+                  </div>
+                </div>
               ) : null}
 
               {mode === "video" ? (
@@ -4423,6 +5007,12 @@ function ApiDocsPanel({ apiKeys }: { apiKeys: ApiKeyInfo[] }) {
   -F "image=@./upload.jpg" \\
   -F "channel=marketplace_listing" \\
   -F "region=global"`;
+  const audioCurl = `curl -X POST ${API_BASE}/moderate/audio \\
+  -H "X-API-Key: ${keyPlaceholder}" \\
+  -F "audio=@./voice-note.mp3" \\
+  -F "transcript_hint=Optional context or fallback transcript" \\
+  -F "channel=voice_message" \\
+  -F "region=global"`;
   const javascriptFetch = `const response = await fetch("${API_BASE}/moderate/text", {
   method: "POST",
   headers: {
@@ -4507,11 +5097,13 @@ await fetch("${API_BASE}/connectors/webhook/events", {
       <div className="grid gap-5 xl:grid-cols-2">
         <CodeSnippet title="Text moderation" subtitle="POST /moderate/text" code={textCurl} />
         <CodeSnippet title="Image moderation" subtitle="POST /moderate/image" code={imageCurl} />
+        <CodeSnippet title="Audio moderation" subtitle="POST /moderate/audio" code={audioCurl} />
       </div>
 
       <CodeSnippet title="JavaScript fetch" subtitle="Server-side example" code={javascriptFetch} />
       <CodeSnippet title="Python requests" subtitle="Server-side example" code={pythonExample} />
       <CodeSnippet title="Signed webhook event" subtitle="Optional connector webhook HMAC scaffold" code={webhookSignature} />
+      <CustomerCodeExamples />
 
       <Card className="dark:border-white/10">
         <CardHeader>
@@ -4530,6 +5122,61 @@ await fetch("${API_BASE}/connectors/webhook/events", {
         </CardContent>
       </Card>
     </div>
+  );
+}
+
+function FirstApiCallPanel({ apiKey, workspaceId }: { apiKey: string; workspaceId: string }) {
+  const curl = `curl -X POST ${API_BASE}/moderate/text \\
+  -H "Content-Type: application/json" \\
+  -H "X-API-Key: ${apiKey}" \\
+  -d '{
+    "text": "Can you review this comment before it goes live?",
+    "metadata": {
+      "channel": "signup_onboarding",
+      "workspace": "${workspaceId}"
+    }
+  }'`;
+  const node = `const response = await fetch("${API_BASE}/moderate/text", {
+  method: "POST",
+  headers: {
+    "Content-Type": "application/json",
+    "X-API-Key": process.env.RTCM_MODERATION_KEY
+  },
+  body: JSON.stringify({ text: "Can you review this comment before it goes live?" })
+});
+
+const decision = await response.json();
+console.log(decision.decision.action);`;
+  const python = `import os
+import requests
+
+response = requests.post(
+    "${API_BASE}/moderate/text",
+    headers={"X-API-Key": os.environ["RTCM_MODERATION_KEY"]},
+    json={"text": "Can you review this comment before it goes live?"},
+    timeout=10,
+)
+print(response.json()["decision"]["action"])`;
+
+  return (
+    <Card className="dark:border-white/10">
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <Code2 className="h-5 w-5 text-teal-700" />
+          Make your first API call
+        </CardTitle>
+        <CardDescription>
+          Run this from your server or terminal. Keep the key out of frontend code and mobile apps.
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        <div className="grid gap-5 xl:grid-cols-3">
+          <CodeSnippet title="Terminal smoke test" subtitle="Copy and run once" code={curl} />
+          <CodeSnippet title="Node backend" subtitle="Use an environment variable" code={node} />
+          <CodeSnippet title="Python backend" subtitle="Server-side request" code={python} />
+        </div>
+      </CardContent>
+    </Card>
   );
 }
 
@@ -5359,12 +6006,14 @@ function BillingPanel({
   usage,
   loading,
   onStartCheckout,
+  onOpenPortal,
   onUpdateBillingScope,
 }: {
   billingStatus: BillingStatus | null;
   usage: DashboardSummary["usage"];
   loading: boolean;
   onStartCheckout: (planName: string) => void;
+  onOpenPortal: () => void;
   onUpdateBillingScope: (billingScope: "account" | "workspace") => void;
 }) {
   const currentPlan = billingStatus?.plan_name ?? usage.plan_name;
@@ -5435,6 +6084,27 @@ function BillingPanel({
             {usage.total_requests.toLocaleString()} requests used this month.{" "}
             {billingScope === "workspace" ? "This count is for this workspace." : "This count is shared across account-billed workspaces."}
           </p>
+          {usage.remaining_requests <= 0 ? (
+            <div className="mt-4 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-900 dark:border-red-400/25 dark:bg-red-950/35 dark:text-red-100">
+              This workspace has used its monthly quota. Upgrade below or manage billing before sending more production traffic.
+            </div>
+          ) : usage.remaining_requests <= Math.ceil(activeQuota * 0.15) ? (
+            <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-950 dark:border-amber-400/25 dark:bg-amber-950/35 dark:text-amber-100">
+              Quota is running low. Upgrade before production traffic is blocked.
+            </div>
+          ) : null}
+          <div className="mt-4 flex flex-wrap gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={onOpenPortal}
+              disabled={loading || !billingStatus?.stripe_customer_id}
+              title={!billingStatus?.stripe_customer_id ? "Choose a Stripe plan before opening the customer portal." : "Manage payment method or cancel subscription"}
+            >
+              Manage payment
+              <ExternalLink className="h-4 w-4" />
+            </Button>
+          </div>
         </div>
 
         <div className="grid gap-4 lg:grid-cols-3">
@@ -5682,6 +6352,8 @@ type ModerationConsoleProps = {
   imageFile: File | null;
   imagePreview: string;
   setImageFile: (file: File | null) => void;
+  audioFile: File | null;
+  setAudioFile: (file: File | null) => void;
   audioTranscript: string;
   setAudioTranscript: (value: string) => void;
   videoTranscript: string;
@@ -5719,6 +6391,8 @@ function ModerationConsole({
   imageFile,
   imagePreview,
   setImageFile,
+  audioFile,
+  setAudioFile,
   audioTranscript,
   setAudioTranscript,
   videoTranscript,
@@ -5881,16 +6555,50 @@ function ModerationConsole({
               <div>
                 <p className="flex items-center gap-2 text-sm font-medium text-slate-950 dark:text-white">
                   <FileAudio className="h-4 w-4 text-teal-700 dark:text-teal-300" />
-                  Audio transcript scanning
+                  Real audio scanning
                 </p>
                 <p className="mt-1 text-xs text-slate-600 dark:text-slate-300">
-                  Paste an ASR transcript or voice-message transcript for the audio endpoint.
+                  Upload a voice note or paste a transcript. Transcription runs when configured on the backend.
                 </p>
               </div>
               <Badge variant="outline">/moderate/audio</Badge>
             </div>
-            <Textarea value={audioTranscript} onChange={(event) => setAudioTranscript(event.target.value)} />
-            <Button onClick={onAudioRun} disabled={audioLoading || !audioTranscript.trim()} className="mt-3">
+            <label className="mb-3 flex min-h-20 cursor-pointer items-center gap-3 rounded-lg border border-dashed border-slate-300 bg-white p-4 text-sm text-slate-600 transition hover:border-teal-500 dark:border-slate-600 dark:bg-slate-950 dark:text-slate-200 dark:hover:border-teal-300">
+              <span className="flex h-12 w-12 items-center justify-center rounded-md bg-teal-50 text-teal-700 dark:bg-teal-900 dark:text-teal-100">
+                <UploadCloud className="h-5 w-5" />
+              </span>
+              <span className="min-w-0">
+                <span className="block truncate font-medium text-slate-800 dark:text-slate-100">
+                  {audioFile ? audioFile.name : "Choose an audio file"}
+                </span>
+                <span className="mt-1 block text-xs text-slate-500 dark:text-slate-300">MP3, WAV, M4A, MP4, or WEBM up to 25 MB</span>
+              </span>
+              <input
+                className="sr-only"
+                type="file"
+                accept="audio/mpeg,audio/mp4,audio/wav,audio/webm,audio/x-m4a,audio/mp4,video/mp4"
+                onChange={(event) => setAudioFile(event.target.files?.[0] ?? null)}
+              />
+            </label>
+            <Textarea
+              value={audioTranscript}
+              onChange={(event) => setAudioTranscript(event.target.value)}
+              placeholder="Optional transcript hint or fallback transcript"
+            />
+            <div className="mt-3 flex flex-wrap gap-2">
+              {audioSamples.map((sample) => (
+                <Button
+                  key={sample.label}
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setAudioTranscript(sample.transcript)}
+                >
+                  {sample.label}
+                </Button>
+              ))}
+            </div>
+            <Button onClick={onAudioRun} disabled={audioLoading || (!audioFile && !audioTranscript.trim())} className="mt-3">
               {audioLoading ? "Scanning audio..." : "Scan audio"}
               <FileAudio className="h-4 w-4" />
             </Button>

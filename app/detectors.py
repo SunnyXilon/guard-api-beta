@@ -286,6 +286,11 @@ _add_phrase_rules(
         "share your aadhaar card",
         "credit card number please",
         "give me your cvv",
+        "send me your seed phrase",
+        "send your seed phrase",
+        "share your seed phrase",
+        "enter your seed phrase",
+        "send wallet recovery phrase",
         "अपना आधार नंबर भेजो",
         "अपना बैंक पासवर्ड बताओ",
         "aadhaar bhej",
@@ -305,6 +310,10 @@ _add_phrase_rules(
         "buy fake passport",
         "make a bomb at home",
         "sell stolen phones",
+        "sell stolen accounts",
+        "stolen login accounts",
+        "stolen accounts for sale",
+        "sell hacked accounts",
         "बम कैसे बनाते हैं",
         "नकली आईडी बनानी है",
         "वाईफाई हैक करना है",
@@ -315,6 +324,51 @@ _add_phrase_rules(
     ],
     0.9,
     "Matched illegal activity instruction or transaction phrase.",
+)
+
+_add_phrase_rules(
+    ModerationCategory.SELF_HARM,
+    [
+        "i want to kill myself",
+        "i want to kill myself tonight",
+        "i am going to kill myself",
+        "i might kill myself",
+        "i want to commit suicide",
+        "i am going to end it tonight",
+        "i do not want to live anymore",
+    ],
+    0.92,
+    "Matched first-person self-harm ideation phrase.",
+)
+
+_add_phrase_rules(
+    ModerationCategory.ILLEGAL_ACTIVITY,
+    [
+        "buy cocaine",
+        "buy pills for cash",
+        "buy cocaine and pills",
+        "cocaine cash only",
+        "sell cocaine",
+        "sell stolen credit cards",
+        "buy stolen credit cards",
+        "where can i buy heroin",
+    ],
+    0.9,
+    "Matched illegal drug or stolen-goods transaction phrase.",
+)
+
+_add_phrase_rules(
+    ModerationCategory.SPAM_SCAM,
+    [
+        "fake crypto support",
+        "seed phrase to recover wallet",
+        "send seed phrase",
+        "wallet recovery phrase",
+        "recover your wallet now",
+        "verify your wallet",
+    ],
+    0.9,
+    "Matched wallet recovery or seed-phrase scam phrase.",
 )
 
 _add_phrase_rules(

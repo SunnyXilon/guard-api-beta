@@ -451,6 +451,24 @@ def test_image_moderation_uses_ocr_and_objects(client) -> None:
     assert payload["modality_details"]["ocr_used"] is True
 
 
+def test_image_moderation_blocks_wallet_seed_phrase_scam(client) -> None:
+    response = client.post(
+        "/moderate/image",
+        headers=DEFAULT_HEADERS,
+        json={
+            "image_caption": "A fake crypto support screenshot",
+            "ocr_text": "send me your seed phrase to recover wallet",
+            "detected_objects": ["phone", "chat screenshot"],
+        },
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["decision"]["action"] == DecisionAction.BLOCK
+    assert "spam_scam" in payload["decision"]["triggered_categories"]
+    assert "pii_leakage" in payload["decision"]["triggered_categories"]
+
+
 def test_image_upload_uses_scanner_labels_ocr_and_safe_search(client) -> None:
     class StubScanner:
         def scan(self, image_bytes: bytes) -> ImageScanResult:
@@ -574,6 +592,53 @@ def test_audio_moderation_uses_transcript(client) -> None:
     assert payload["metadata"]["extracted_text"].startswith("I will find you")
 
 
+def test_audio_upload_accepts_file_with_transcript_hint(client) -> None:
+    response = client.post(
+        "/moderate/audio",
+        headers=DEFAULT_HEADERS,
+        files={"audio": ("threat.wav", b"fake-wav", "audio/wav")},
+        data={"transcript_hint": "I will find you and you deserve pain", "channel": "voice_message"},
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["metadata"]["modality"] == "audio"
+    assert payload["metadata"]["extracted_text"].startswith("I will find you")
+    assert payload["modality_details"]["uploaded_filename"] == "threat.wav"
+    assert payload["modality_details"]["transcription_fallback_used"] is True
+
+
+def test_audio_upload_rejects_unsupported_file_type(client) -> None:
+    response = client.post(
+        "/moderate/audio",
+        headers=DEFAULT_HEADERS,
+        files={"audio": ("notes.txt", b"not-audio", "text/plain")},
+    )
+
+    assert response.status_code == 415
+
+
+def test_audio_moderation_covers_multiple_policy_categories(client) -> None:
+    samples = [
+        ("Guaranteed profit investment send OTP and bank details now", "spam_scam"),
+        ("Send nude pics right now", "sexual_content"),
+        ("I want to kill myself tonight", "self_harm"),
+        ("Buy cocaine and pills for cash only", "illegal_activity"),
+        ("You are worthless and I will find you", "harassment"),
+    ]
+
+    for transcript, expected_category in samples:
+        response = client.post(
+            "/moderate/audio",
+            headers=DEFAULT_HEADERS,
+            json={"transcript_hint": transcript},
+        )
+
+        assert response.status_code == 200
+        payload = response.json()
+        assert expected_category in payload["decision"]["triggered_categories"]
+
+
 def test_video_moderation_fuses_frames_and_transcript(client) -> None:
     response = client.post(
         "/moderate/video",
@@ -596,3 +661,26 @@ def test_video_moderation_fuses_frames_and_transcript(client) -> None:
     assert payload["metadata"]["modality"] == "video"
     assert payload["decision"]["action"] == DecisionAction.BLOCK
     assert payload["modality_details"]["frame_count"] == 1
+
+
+def test_video_moderation_blocks_stolen_account_sales(client) -> None:
+    response = client.post(
+        "/moderate/video",
+        headers=MARKET_HEADERS,
+        json={
+            "transcript_hint": "This video shows stolen login accounts for sale",
+            "frames": [
+                {
+                    "timestamp_ms": 0,
+                    "description": "chat showing stolen accounts",
+                    "ocr_text": "stolen login accounts for sale",
+                    "detected_objects": ["phone"],
+                }
+            ],
+        },
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["decision"]["action"] == DecisionAction.BLOCK
+    assert "illegal_activity" in payload["decision"]["triggered_categories"]
