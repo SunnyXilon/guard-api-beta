@@ -2583,12 +2583,14 @@ function PublicNextUpdateSection() {
       title: "Mobile review app",
       description: "Monitor alerts, review cases, and social inbox activity from a phone when teams are away from the dashboard.",
       items: ["Alert monitoring", "Review case triage", "Social inbox checks"],
+      status: "planned",
     },
     {
       title: "Adaptive Policy Memory",
       description:
-        "A planned intelligence layer that lets teams turn repeated scams, coded harassment, and resolved review cases into reusable moderation memory.",
+        "An intelligence layer in development that lets teams turn repeated scams, coded harassment, and resolved review cases into reusable moderation memory.",
       items: ["Review case learning", "Customer-specific patterns", "Coded abuse detection"],
+      status: "in development",
     },
   ];
 
@@ -2602,11 +2604,11 @@ function PublicNextUpdateSection() {
               Upcoming updates
             </Badge>
             <h2 className="text-3xl font-semibold tracking-normal text-slate-950 dark:text-white">
-              Mobile review app and adaptive policy memory are planned next.
+              Mobile review app is planned, and adaptive policy memory is in development.
             </h2>
             <p className="mt-4 text-slate-600 dark:text-slate-300">
               Guard API is expanding beyond the web dashboard with mobile moderation workflows and a practical
-              memory layer for evolving abuse patterns. These are planned updates, not current production features.
+              memory layer for evolving abuse patterns. These updates are not current production features yet.
             </p>
             <div className="mt-6 grid gap-4">
               {upcomingUpdates.map((update) => (
@@ -2616,7 +2618,7 @@ function PublicNextUpdateSection() {
                       <p className="text-sm font-semibold text-slate-950 dark:text-white">{update.title}</p>
                       <p className="mt-2 text-sm leading-6 text-muted-foreground">{update.description}</p>
                     </div>
-                    <Badge variant="outline">planned</Badge>
+                    <Badge variant="outline">{update.status}</Badge>
                   </div>
                   <div className="mt-4 flex flex-wrap gap-2">
                     {update.items.map((item) => (
