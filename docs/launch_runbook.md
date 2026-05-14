@@ -101,7 +101,7 @@ This runbook covers the remaining production work for auth, payments, database, 
 
 ## 9. Product Polish
 
-- Finalize public pricing and moderation-credit copy.
+- Finalize public pricing and Guard credit copy.
 - Add final Terms, Privacy, Refund, and acceptable-use pages.
 - Verify onboarding from blank account to first API call.
 - Verify review-case workflow: create risky moderation request, assign, add note, resolve, and confirm audit event.

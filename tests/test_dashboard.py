@@ -22,6 +22,10 @@ def test_dashboard_shows_usage_recent_decisions_and_policy(client) -> None:
     assert payload["usage"]["monthly_quota"] == 3000
     assert payload["usage"]["remaining_requests"] + payload["usage"]["total_requests"] == 3000
     assert payload["usage"]["total_requests"] >= 1
+    assert payload["usage"]["used_credits"] == payload["usage"]["total_requests"]
+    assert payload["usage"]["remaining_credits"] == payload["usage"]["remaining_requests"]
+    assert payload["usage"]["request_count"] >= 1
+    assert payload["usage"]["credit_unit"] == "Guard credits"
     assert payload["usage"]["block"] >= 1
     assert payload["recent_decisions"]
     assert payload["recent_decisions"][0]["action"] == DecisionAction.BLOCK

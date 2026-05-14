@@ -140,6 +140,10 @@ class UsageSummary(BaseModel):
     total_requests: int
     monthly_quota: int
     remaining_requests: int
+    request_count: int = 0
+    used_credits: int = 0
+    remaining_credits: int = 0
+    credit_unit: str = "Guard credits"
     plan_name: str
     billing_scope: str = "account"
     allow: int = 0
@@ -374,4 +378,3 @@ class SocialAction(BaseModel):
     external_action_id: Optional[str] = None
     payload: Dict[str, object] = Field(default_factory=dict)
     created_at: datetime
-

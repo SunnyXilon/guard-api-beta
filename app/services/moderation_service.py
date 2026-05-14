@@ -434,8 +434,8 @@ class ModerationService:
             raise HTTPException(
                 status_code=status.HTTP_402_PAYMENT_REQUIRED,
                 detail=(
-                    f"Monthly credit quota exceeded for the {plan_name} plan "
-                    f"({used}/{monthly_quota} credits used; this {modality} check needs {next_cost} credits). "
+                    f"Monthly Guard credit quota exceeded for the {plan_name} plan "
+                    f"({used}/{monthly_quota} Guard credits used; this {modality} check needs {next_cost} Guard credits). "
                     "Upgrade the plan from Billing or wait for next month's reset."
                 ),
             )

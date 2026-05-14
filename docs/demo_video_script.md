@@ -34,11 +34,11 @@ Say:
 
 ## 1:25-1:45 Billing
 
-Open Billing and show moderation credits, plans, checkout buttons, and payment management.
+Open Billing and show Guard credits, plans, checkout buttons, and payment management.
 
 Say:
 
-"Customers can start on a trial, upgrade by moderation credits, and manage payment through billing."
+"Customers can start on a trial, upgrade by Guard credits, and manage payment through billing."
 
 ## 1:45-2:00 Close
 

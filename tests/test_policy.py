@@ -393,7 +393,7 @@ def test_image_moderation_consumes_weighted_credits(client) -> None:
     )
 
     assert response.status_code == 402
-    assert "needs 10 credits" in response.json()["detail"]
+    assert "needs 10 Guard credits" in response.json()["detail"]
 
 
 def test_audio_moderation_consumes_per_started_minute_credits(client) -> None:
@@ -413,7 +413,7 @@ def test_audio_moderation_consumes_per_started_minute_credits(client) -> None:
     )
 
     assert rejected.status_code == 402
-    assert "needs 20 credits" in rejected.json()["detail"]
+    assert "needs 20 Guard credits" in rejected.json()["detail"]
 
     db = client.app.state.session_factory()
     try:
@@ -458,7 +458,7 @@ def test_video_moderation_consumes_beta_per_started_minute_credits(client) -> No
     )
 
     assert response.status_code == 402
-    assert "needs 150 credits" in response.json()["detail"]
+    assert "needs 150 Guard credits" in response.json()["detail"]
 
 
 def test_review_queue_lists_flagged_cases(client) -> None:

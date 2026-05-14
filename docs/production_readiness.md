@@ -15,7 +15,7 @@ Guard API is usable as a local prototype, but paid monthly use needs operational
   - `dashboard` for dashboard access.
   - `policy:write` for policy and key administration.
 - Tenant admins can create new moderation-only keys from the dashboard or `/api-keys`.
-- Tenants have a monthly moderation-credit quota and requests are rejected once the credit quota is exhausted.
+- Tenants have a monthly Guard credit quota and requests are rejected once the credit quota is exhausted.
 - Dashboard admin keys are exchanged for short-lived bearer session tokens before dashboard calls.
 - Stripe checkout and webhook endpoints are available for plan/quota synchronization.
 - Dashboard demo keys and API URLs are loaded from frontend environment variables instead of being hardcoded in the React bundle.

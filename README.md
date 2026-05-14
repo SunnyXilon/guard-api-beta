@@ -22,12 +22,12 @@ Guard API scores content across these safety categories:
 
 Every moderation response includes category scores, severity, matched policy labels, an explanation, a request ID, and the final action your app should take.
 
-Paid plans use moderation credits to protect media-heavy usage:
+Paid plans use Guard credits to protect hosted API, dashboard, audit, review queue, and media-heavy usage. These are platform usage credits, not a pass-through OpenAI moderation charge:
 
-- Text check: 1 credit
-- Image scan: 10 credits
-- Audio check: 10 credits per started minute
-- Beta video check: 50 credits per started minute
+- Text check: 1 Guard credit
+- Image scan: 10 Guard credits
+- Audio check: 10 Guard credits per started minute
+- Beta video check: 50 Guard credits per started minute
 
 Uploaded image scans run labels and SafeSearch first. Google OCR is only requested for text-like images, or customers can pass their own `ocr_text`.
 
@@ -215,7 +215,7 @@ curl -X POST http://127.0.0.1:8000/moderate/audio ^
 
 Uploaded audio is transcribed when `RTCM_OPENAI_API_KEY` is configured. Set `RTCM_AUDIO_TRANSCRIPTION_REQUIRED=true`
 in production if you sell audio-file moderation as a paid feature. Uploaded audio/video requests must include
-`duration_seconds` so per-minute credits are charged correctly.
+`duration_seconds` so per-minute Guard credits are charged correctly.
 
 Example video request:
 

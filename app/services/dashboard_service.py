@@ -58,11 +58,18 @@ class DashboardService:
         decisions = self.moderation_repository.list_request_results_between_tenants(tenant_ids, start=start, end=end)
         used_credits = sum(credits_for_record(request.modality, request.content_metadata) for request, _result in decisions)
         counts = Counter(result.action for _request, result in decisions)
+        request_count = len(decisions)
+        remaining_credits = max(monthly_quota - used_credits, 0)
         return UsageSummary(
             month=start.strftime("%Y-%m"),
+            # Backward compatibility: dashboard clients historically read this as weighted credit usage.
             total_requests=used_credits,
             monthly_quota=monthly_quota,
-            remaining_requests=max(monthly_quota - used_credits, 0),
+            remaining_requests=remaining_credits,
+            request_count=request_count,
+            used_credits=used_credits,
+            remaining_credits=remaining_credits,
+            credit_unit="Guard credits",
             plan_name=plan_name,
             billing_scope=billing_scope,
             allow=counts.get(DecisionAction.ALLOW.value, 0),
