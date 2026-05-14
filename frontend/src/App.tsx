@@ -2466,6 +2466,8 @@ export function App({ clerkEnabled, clerkLoaded, clerkSignedIn, getClerkToken }:
         </div>
       </section>
 
+      <PublicAboutDeveloperSection />
+
       <PublicFaqSection />
 
       <PublicFooter navigate={navigate} />
@@ -2576,6 +2578,20 @@ function PublicHowToUseSection({ onDashboard }: { onDashboard: () => void }) {
 }
 
 function PublicNextUpdateSection() {
+  const upcomingUpdates = [
+    {
+      title: "Mobile review app",
+      description: "Monitor alerts, review cases, and social inbox activity from a phone when teams are away from the dashboard.",
+      items: ["Alert monitoring", "Review case triage", "Social inbox checks"],
+    },
+    {
+      title: "Adaptive Policy Memory",
+      description:
+        "A planned intelligence layer that lets teams turn repeated scams, coded harassment, and resolved review cases into reusable moderation memory.",
+      items: ["Review case learning", "Customer-specific patterns", "Coded abuse detection"],
+    },
+  ];
+
   return (
     <section id="next-update" className="relative overflow-hidden border-t border-border bg-slate-50 py-16 dark:bg-slate-900">
       <CyberSecurityBackdrop />
@@ -2583,19 +2599,30 @@ function PublicNextUpdateSection() {
         <div className="grid items-center gap-8 lg:grid-cols-[0.85fr_1.15fr]">
           <div>
             <Badge variant="secondary" className="mb-4">
-              Next update
+              Upcoming updates
             </Badge>
             <h2 className="text-3xl font-semibold tracking-normal text-slate-950 dark:text-white">
-              Mobile app coming soon
+              Mobile review app and adaptive policy memory are planned next.
             </h2>
             <p className="mt-4 text-slate-600 dark:text-slate-300">
-              Guard API is expanding beyond the web dashboard with a mobile experience for moderation alerts,
-              review cases, and social inbox activity.
+              Guard API is expanding beyond the web dashboard with mobile moderation workflows and a practical
+              memory layer for evolving abuse patterns. These are planned updates, not current production features.
             </p>
-            <div className="mt-6 grid gap-3 sm:grid-cols-3">
-              {["Alert monitoring", "Review case triage", "Social inbox checks"].map((item) => (
-                <div key={item} className="rounded-lg border border-border bg-background p-3 text-sm font-medium">
-                  {item}
+            <div className="mt-6 grid gap-4">
+              {upcomingUpdates.map((update) => (
+                <div key={update.title} className="rounded-lg border border-border bg-background p-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-semibold text-slate-950 dark:text-white">{update.title}</p>
+                      <p className="mt-2 text-sm leading-6 text-muted-foreground">{update.description}</p>
+                    </div>
+                    <Badge variant="outline">planned</Badge>
+                  </div>
+                  <div className="mt-4 flex flex-wrap gap-2">
+                    {update.items.map((item) => (
+                      <Badge key={item} variant="secondary">{item}</Badge>
+                    ))}
+                  </div>
                 </div>
               ))}
             </div>
@@ -2608,6 +2635,39 @@ function PublicNextUpdateSection() {
               className="aspect-[21/9] w-full object-cover"
             />
           </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function PublicAboutDeveloperSection() {
+  return (
+    <section id="built-by" className="bg-slate-50 py-16 dark:bg-slate-900">
+      <div className="container">
+        <div className="grid gap-8 lg:grid-cols-[0.75fr_1.25fr]">
+          <div>
+            <Badge variant="outline" className="mb-4">
+              Built by
+            </Badge>
+            <h2 className="text-3xl font-semibold tracking-normal text-slate-950 dark:text-white">
+              Independent product engineering for practical moderation.
+            </h2>
+          </div>
+          <Card className="border-slate-200 bg-white shadow-sm dark:border-white/10 dark:bg-slate-950/80">
+            <CardContent className="p-6">
+              <p className="text-sm leading-6 text-slate-700 dark:text-slate-200">
+                Guard API is built by an independent developer focused on trust-and-safety tooling for social,
+                marketplace, creator, and dating apps. The product is designed to help teams check text, images,
+                audio, and video before harmful content reaches users.
+              </p>
+              <div className="mt-5 grid gap-3 sm:grid-cols-3">
+                <ApiDocTile label="Focus" value="Trust and safety APIs" />
+                <ApiDocTile label="Audience" value="Apps with user content" />
+                <ApiDocTile label="Goal" value="Allow, review, or block before publish" />
+              </div>
+            </CardContent>
+          </Card>
         </div>
       </div>
     </section>
