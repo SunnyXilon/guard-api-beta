@@ -5278,10 +5278,13 @@ function LockedPreviewPanel({ title }: { title: string }) {
 }
 
 function ApiDocTile({ label, value }: { label: string; value: string }) {
+  const shouldBreakAnywhere = /[_:/\\]/.test(value) || value.length > 44;
   return (
     <div className="rounded-lg border border-border bg-slate-50 p-3 dark:bg-slate-950/70">
       <p className="text-xs font-medium uppercase text-muted-foreground">{label}</p>
-      <p className="mt-1 break-all text-sm font-medium text-slate-900 dark:text-white">{value}</p>
+      <p className={cn("mt-1 text-sm font-medium text-slate-900 dark:text-white", shouldBreakAnywhere ? "break-all" : "break-words")}>
+        {value}
+      </p>
     </div>
   );
 }
